@@ -454,14 +454,34 @@ function xirr(flows){
 function relInfo(v){ v=String(v||'').trim(); let m=v.match(/^(\d{4})\s*E$/i); if(m) return {d:m[1]+'-12-31', est:true, y:m[1]}; m=v.match(/^(\d{4}-\d{2}-\d{2})/); return m?{d:m[1],est:false}:null; }
 const fmtRel = v => { const r=relInfo(v); return !r ? '—' : r.est ? r.y+' (expected)' : fmtD(r.d); };
 /** Ownership split. "Self 20, Ram 20%, Hari:20; Sita (20%), Gita" → names without % share the remainder equally. */
+/** Ownership split, stored as text in the Sheet. Two forms:
+ *  by %      "Self 20, Ram 20%, Hari:20; Sita (20%), Gita"  (names without % share the remainder equally)
+ *  by shares "Suman 1050 sh, Sanam 625 sh, Amrit 1,050 sh"  (each owner's exact no. of shares; % = their share of the total) */
 function parseOwners(str){
-  const parts = String(str||'').split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
-  const list = parts.map(p => { const m = p.match(/^(.*?)[\s:=(]*(\d+(?:\.\d+)?)\s*%?\)?\s*$/); return m && m[1].trim() ? {name:m[1].trim(), pct:+m[2]} : {name:p.replace(/[()%]/g,'').trim(), pct:null}; }).filter(o=>o.name);
+  const parts = String(str||'').split(/;|\n|,(?=\s*[^\d\s])/).map(x=>x.trim()).filter(Boolean);   // commas inside numbers (1,050) are kept
+  const list = parts.map(p => {
+    let m = p.match(/^(.*?)[\s:=(]*(\d[\d,]*(?:\.\d+)?)\s*(?:sh|shares?|kitta)\.?\)?\s*$/i);
+    if (m && m[1].trim()) return { name: m[1].trim(), sh: N(m[2]), pct: null };
+    m = p.match(/^(.*?)[\s:=(]*(\d+(?:\.\d+)?)\s*%?\)?\s*$/);
+    return m && m[1].trim() ? { name: m[1].trim(), pct: +m[2] } : { name: p.replace(/[()%]/g,'').trim(), pct: null };
+  }).filter(o=>o.name);
+  if (list.some(o => o.sh != null)) {
+    const tot = list.reduce((a,o)=>a+(o.sh||0),0);
+    list.forEach(o => { o.sh = o.sh || 0; o.pct = tot ? o.sh/tot*100 : 0; });
+    list.bySh = true; list.totSh = tot; return list;
+  }
   const fixed = list.filter(o=>o.pct!=null).reduce((a,o)=>a+o.pct,0), free = list.filter(o=>o.pct==null);
   free.forEach(o => o.pct = free.length ? Math.max(0, 100-fixed)/free.length : 0);
   return list;
 }
-const fmtOwners = list => list.length===1 && Math.abs(list[0].pct-100)<1e-9 ? list[0].name : list.map(o=>`${o.name} ${+o.pct.toFixed(4)}%`).join(', ');
+const fmtOwners = list => list.length===1 && Math.abs(list[0].pct-100)<1e-9 ? list[0].name
+  : list.bySh ? list.map(o=>`${o.name} ${fmtQ(o.sh)} sh (${+o.pct.toFixed(2)}%)`).join(', ')
+  : list.map(o=>`${o.name} ${+o.pct.toFixed(4)}%`).join(', ');
+/** Each owner's whole shares of `total`: exact counts when entered by shares (and they match), else split by %. */
+function ownerAlloc(os, total, exactField){
+  if (os.bySh && exactField && Math.round(os.totSh) === Math.round(N(total))) return os.map(o => Math.round(o.sh));
+  return allocate(total, os.map(o=>o.pct));
+}
 const ownerPct = (h, name) => { const o = parseOwners(h.owner).find(o=>o.name.toLowerCase()===String(name).toLowerCase()); return o ? o.pct : 0; };
 const allOwners = () => [...new Set(S.holdings.flatMap(h=>parseOwners(h.owner).map(o=>o.name)))].sort();
 const isJoint = h => parseOwners(h.owner).length > 1;
@@ -815,9 +835,10 @@ function openDrawer(id){
 }
 function ownSplitHtml(h, r){
   const os = parseOwners(h.owner); if (os.length < 2) return '';
-  const sh = allocate(r.orig, os.map(o=>o.pct)), bo = allocate(r.bonus, os.map(o=>o.pct)), sq = allocate(r.exQ, os.map(o=>o.pct));
-  const tot = os.reduce((a,o)=>a+o.pct,0);
-  return `<div class="sec-t">Ownership split · joint investment</div>
+  const sh = ownerAlloc(os, r.orig, true), bo = ownerAlloc(os, r.bonus), sq = ownerAlloc(os, r.exQ);
+  const tot = os.reduce((a,o)=>a+o.pct,0), shMismatch = os.bySh && Math.round(os.totSh) !== Math.round(r.orig);
+  return `<div class="sec-t">Ownership split · joint investment${os.bySh?' (by no. of shares)':''}</div>
+  ${shMismatch?`<div class="banner" style="background:var(--bad-soft)">Owners' shares add up to ${fmtQ(os.totSh)}, but this holding has ${fmtQ(r.orig)} shares. Edit the holding to fix.</div>`:''}
   <div class="tbl-wrap" style="max-height:none"><table><thead><tr><th style="cursor:default">Owner</th><th class="r" style="cursor:default">%</th><th class="r" style="cursor:default">Shares</th><th class="r" style="cursor:default">Investment</th><th class="r" style="cursor:default">Current value</th><th class="r" style="cursor:default">Total return</th></tr></thead><tbody>
   ${os.map((o,i)=>{ const f=o.pct/100; return `<tr style="cursor:default${S.lens&&S.lens.toLowerCase()===o.name.toLowerCase()?';background:var(--brand-soft)':''}"><td><b>${esc(o.name)}</b></td><td class="r num">${+o.pct.toFixed(2)}%</td><td class="r num">${fmtQ(sh[i]+bo[i]-sq[i])}${bo[i]?`<span class="sub2">${fmtQ(sh[i])} + ${fmtQ(bo[i])} bonus</span>`:''}</td><td class="r num">${fmtRs(r.totalCost*f,0)}</td><td class="r num">${fmtRs(r.curVal*f,0)}</td><td class="r num ${sgn(r.totPL)}">${fmtRs(r.totPL*f,0)}</td></tr>`; }).join('')}
   </tbody><tfoot><tr><td>Total</td><td class="r num ${Math.abs(tot-100)>0.01?'neg':''}">${+tot.toFixed(2)}%</td><td class="r num">${fmtQ(r.rem)}</td><td class="r num">${fmtRs(r.totalCost,0)}</td><td class="r num">${fmtRs(r.curVal,0)}</td><td class="r num">${fmtRs(r.totPL,0)}</td></tr></tfoot></table></div>
@@ -827,9 +848,10 @@ function openSegregate(id){
   const h = S.holdings.find(x=>x.id===id), r = calc(h), os = parseOwners(h.owner), pc = os.map(o=>o.pct);
   const tot = pc.reduce((a,b)=>a+b,0);
   if (Math.abs(tot-100) > 0.01) { toast('Ownership % must total 100 before segregating (now '+(+tot.toFixed(2))+'%)','err'); return; }
-  const sh = allocate(h.shares, pc), bo = allocate(h.bonusShares, pc), sq = allocate(h.exitedQty, pc);
+  if (os.bySh && Math.round(os.totSh) !== Math.round(N(h.shares))) { toast(`Owners' shares total ${fmtQ(os.totSh)} but the holding has ${fmtQ(N(h.shares))}. Fix it first.`,'err'); return; }
+  const sh = ownerAlloc(os, h.shares, true), bo = ownerAlloc(os, h.bonusShares), sq = ownerAlloc(os, h.exitedQty);
   smallModal(`Segregate · ${esc(h.company)}`, `
-    <p class="hint" style="margin-top:0">Splits this joint holding into ${os.length} separate holdings, one per owner, with the same rate, dates, lock-in and status. Shares are split by ownership % (whole shares; rounding goes to the largest fractions). The joint record is replaced.</p>
+    <p class="hint" style="margin-top:0">Splits this joint holding into ${os.length} separate holdings, one per owner, with the same rate, dates, lock-in and status. ${os.bySh ? 'Each owner gets exactly the shares entered for them; bonus and sold shares are split in proportion.' : 'Shares are split by ownership % (whole shares; rounding goes to the largest fractions).'} The joint record is replaced.</p>
     <div class="tbl-wrap" style="max-height:none"><table><thead><tr><th style="cursor:default">Owner</th><th class="r" style="cursor:default">Shares</th><th class="r" style="cursor:default">Bonus</th><th class="r" style="cursor:default">Sold</th><th style="cursor:default">New demat holder</th></tr></thead><tbody>
     ${os.map((o,i)=>`<tr style="cursor:default"><td><b>${esc(o.name)}</b><span class="sub2">${+o.pct.toFixed(2)}%</span></td><td class="r num">${fmtQ(sh[i])}</td><td class="r num">${fmtQ(bo[i])}</td><td class="r num">${fmtQ(sq[i])}</td><td><input class="segDm" data-i="${i}" value="${esc(o.name)}" style="width:130px;border:1px solid var(--border-2);border-radius:8px;padding:6px 8px;background:var(--surface-2)"></td></tr>`).join('')}
     </tbody></table></div>`, 'Segregate', async () => {
@@ -875,8 +897,11 @@ function openForm(id){
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="seg" id="ownSeg"><button type="button" data-own="single">Single owner</button><button type="button" data-own="joint">Joint (family / friends)</button></div>
           <input id="ownSingle" list="dlOwn" placeholder="e.g. Self" style="flex:1;min-width:160px"></div>
         <div id="ownJoint" style="display:none;margin-top:10px">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><span class="help">Split by</span><div class="seg" id="ownUnit"><button type="button" data-unit="sh">No. of shares</button><button type="button" data-unit="pct">%</button></div></div>
           <div id="ownRows" style="display:flex;flex-direction:column;gap:6px"></div>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="ownAdd">+ Add owner</button><button type="button" class="btn sm" id="ownEq">Split equally</button><span class="help" id="ownTot" style="margin-left:auto"></span></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="ownAdd">+ Add owner</button><button type="button" class="btn sm" id="ownEq">Split equally</button><button type="button" class="btn sm" id="ownPasteBtn">Paste from Excel</button><span class="help" id="ownTot" style="margin-left:auto"></span></div>
+          <div id="ownPasteBox" style="display:none;margin-top:8px"><textarea id="ownPaste" rows="5" placeholder="Copy the Name and No. of Shares columns from Excel and paste here, e.g.&#10;Suman	1,050&#10;Sanam	625&#10;Amrita	625" style="width:100%;border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2);font:12.5px ui-monospace,monospace"></textarea>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><span class="help">If a row has several numbers, use</span><select id="ownPasteCol" class="sel" style="padding:5px 26px 5px 8px"><option value="0">1st number</option><option value="1">2nd number</option><option value="2">3rd number</option><option value="3">4th number</option></select><button type="button" class="btn pri sm" id="ownPasteGo">Use these owners</button><span class="help" id="ownPasteMsg"></span></div></div>
         </div>
         <input type="hidden" name="owner" value="${v('owner')}"></div>
       <div class="f"><label>BOID / Demat no.</label><input name="boid" value="${v('boid')}" placeholder="optional"></div>
@@ -918,28 +943,72 @@ function openForm(id){
   const setLk = m => { lkMode = m; $$('#lkSeg button').forEach(b=>b.classList.toggle('on', b.dataset.lk===m)); $('#lkDate').style.display = m==='date'?'':'none'; $('#lkYear').style.display = m==='year'?'':'none'; syncLk(); };
   const syncLk = () => { el('lockinDate').value = lkMode==='date' ? $('#lkDate').value : ($('#lkYear').value ? $('#lkYear').value+'E' : ''); update(); };
   $$('#lkSeg button').forEach(b => b.onclick = () => setLk(b.dataset.lk)); $('#lkDate').oninput = syncLk; $('#lkYear').oninput = syncLk;
-  // ownership: single name, or joint list "Name pct, Name pct"
-  let ownMode = isJoint(h) ? 'joint' : 'single';
-  const ownRowHtml = (n, pc) => `<div class="ownRow" style="display:grid;grid-template-columns:1fr 90px 170px 32px;gap:6px;align-items:center"><input class="oN" list="dlOwn" placeholder="Owner name" value="${esc(n||'')}" style="border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2)"><input class="oP" type="number" min="0" max="100" step="0.01" placeholder="%" value="${pc==null?'':+(+pc).toFixed(4)}" style="border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2)"><span class="help oS num" style="text-align:right;white-space:nowrap"></span><button type="button" class="icon-btn oX" style="width:32px;height:32px">${IC.x}</button></div>`;
-  const ownRead = () => $$('.ownRow').map(rw => ({name: $('.oN',rw).value.trim(), pct: $('.oP',rw).value===''?null:N($('.oP',rw).value)})).filter(o=>o.name);
+  // ownership: single name, or joint list by no. of shares ("Name 1050 sh, …") or by % ("Name 20%, …")
+  const ownInit = parseOwners(h.owner);
+  let ownMode = ownInit.length > 1 ? 'joint' : 'single', ownUnit = ownInit.length > 1 && !ownInit.bySh ? 'pct' : 'sh';
+  const inSt = 'border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2);min-width:0';
+  const ownRowHtml = (n, val) => `<div class="ownRow" style="display:grid;grid-template-columns:minmax(0,1fr) 110px 190px 32px;gap:6px;align-items:center"><input class="oN" list="dlOwn" placeholder="Owner name" value="${esc(n||'')}" style="${inSt}"><input class="oP" type="number" min="0" step="${ownUnit==='sh'?1:0.01}" placeholder="${ownUnit==='sh'?'shares':'%'}" value="${val==null||val===''?'':+(+val).toFixed(4)}" style="${inSt}"><span class="help oS num" style="text-align:right;white-space:nowrap"></span><button type="button" class="icon-btn oX" style="width:32px;height:32px">${IC.x}</button></div>`;
+  const ownRead = () => $$('.ownRow').map(rw => ({name: $('.oN',rw).value.trim(), v: $('.oP',rw).value===''?null:N($('.oP',rw).value)})).filter(o=>o.name);
   const ownSync = () => {
-    if (ownMode==='single') { el('owner').value = $('#ownSingle').value.trim(); }
-    else { const l = ownRead(); el('owner').value = l.map(o => o.pct==null ? o.name : `${o.name} ${o.pct}%`).join(', ');
-      const pl = parseOwners(el('owner').value), tot = pl.reduce((a,o)=>a+o.pct,0), sh = N(el('shares').value);
+    if (ownMode==='single') { el('owner').value = $('#ownSingle').value.trim(); return; }
+    const l = ownRead(), sh = N(el('shares').value), rate = N(el('costPerShare').value);
+    if (ownUnit === 'sh') {
+      el('owner').value = l.map(o => `${o.name} ${Math.round(o.v||0)} sh`).join(', ');
+      const tot = l.reduce((a,o)=>a+Math.round(o.v||0),0), ok = sh>0 && tot===Math.round(sh);
+      $('#ownTot').innerHTML = `Total <b class="${ok?'pos':'neg'}">${fmtQ(tot)}</b> of ${fmtQ(sh)} shares${ok?' ✓':sh? (tot<sh?` · ${fmtQ(sh-tot)} unassigned`:` · ${fmtQ(tot-sh)} too many`) : ''}`;
+      $$('.ownRow').forEach(rw => { const v = Math.round(N($('.oP',rw).value)); $('.oS',rw).textContent = v ? `${tot? (v/tot*100).toFixed(2):'0'}% · ${fmtRs(v*rate,0)}` : ''; });
+    } else {
+      el('owner').value = l.map(o => o.v==null ? o.name : `${o.name} ${o.v}%`).join(', ');
+      const pl = parseOwners(el('owner').value), tot = pl.reduce((a,o)=>a+o.pct,0);
       $('#ownTot').innerHTML = `Total <b class="${Math.abs(tot-100)>0.01?'neg':'pos'}">${+tot.toFixed(2)}%</b>${Math.abs(tot-100)>0.01?' (must be 100%)':''}`;
       const alloc = allocate(sh, $$('.ownRow').map(rw => { const nm=$('.oN',rw).value.trim(); const o = pl.find(x=>x.name===nm); return o?o.pct:0; }));
-      $$('.ownRow').forEach((rw,i) => $('.oS',rw).textContent = sh ? fmtQ(alloc[i])+' sh · '+fmtRs(alloc[i]*N(el('costPerShare').value),0) : ''); }
+      $$('.ownRow').forEach((rw,i) => $('.oS',rw).textContent = sh ? fmtQ(alloc[i])+' sh · '+fmtRs(alloc[i]*rate,0) : '');
+    }
   };
   const ownBind = () => { $$('.ownRow input').forEach(x=>x.oninput=ownSync); $$('.oX').forEach(b=>b.onclick=()=>{ b.closest('.ownRow').remove(); ownSync(); }); };
+  const fillRows = list => { $('#ownRows').innerHTML = list.map(o=>ownRowHtml(o.name, o.v)).join(''); ownBind(); ownSync(); };
+  const setUnit = u => {
+    if (u === ownUnit && $$('.ownRow').length) { $$('#ownUnit button').forEach(b=>b.classList.toggle('on', b.dataset.unit===u)); return; }
+    const l = ownRead(), sh = N(el('shares').value);
+    let conv = l;   // convert existing values between % and shares
+    if (l.length && u==='sh' && ownUnit==='pct') { const al = allocate(sh, parseOwners(l.map(o=>o.v==null?o.name:`${o.name} ${o.v}%`).join(', ')).map(o=>o.pct)); conv = l.map((o,i)=>({name:o.name, v: sh ? al[i] : null})); }
+    if (l.length && u==='pct' && ownUnit==='sh') { const t = l.reduce((a,o)=>a+(o.v||0),0); conv = l.map(o=>({name:o.name, v: t ? +((o.v||0)/t*100).toFixed(4) : null})); }
+    ownUnit = u; $$('#ownUnit button').forEach(b=>b.classList.toggle('on', b.dataset.unit===u));
+    fillRows(conv.length ? conv : [{name:$('#ownSingle').value.trim(), v:null},{name:'',v:null}]);
+  };
   const setOwn = m => { ownMode = m; $$('#ownSeg button').forEach(b=>b.classList.toggle('on', b.dataset.own===m)); $('#ownJoint').style.display = m==='joint'?'':'none'; $('#ownSingle').style.display = m==='single'?'':'none';
-    if (m==='joint' && !$$('.ownRow').length) { const cur = $('#ownSingle').value.trim(); $('#ownRows').innerHTML = ownRowHtml(cur,50) + ownRowHtml('',50); ownBind(); }
+    if (m==='joint' && !$$('.ownRow').length) { const cur = $('#ownSingle').value.trim(); fillRows([{name:cur, v:null},{name:'', v:null}]); }
     if (m==='single' && !$('#ownSingle').value) { const l = ownRead(); $('#ownSingle').value = l[0] ? l[0].name : ''; }
     ownSync(); };
-  { const pl = parseOwners(h.owner); if (pl.length>1) { $('#ownRows').innerHTML = pl.map(o=>ownRowHtml(o.name,o.pct)).join(''); ownBind(); } else $('#ownSingle').value = pl[0] ? pl[0].name : ''; }
+  if (ownInit.length > 1) fillRows(ownInit.map(o => ({name:o.name, v: ownInit.bySh ? o.sh : o.pct})));
+  else $('#ownSingle').value = ownInit[0] ? ownInit[0].name : '';
+  $$('#ownUnit button').forEach(b => { b.classList.toggle('on', b.dataset.unit===ownUnit); b.onclick = () => setUnit(b.dataset.unit); });
   $$('#ownSeg button').forEach(b => b.onclick = () => setOwn(b.dataset.own));
   $('#ownSingle').oninput = ownSync;
   $('#ownAdd').onclick = () => { $('#ownRows').insertAdjacentHTML('beforeend', ownRowHtml('', null)); ownBind(); ownSync(); };
-  $('#ownEq').onclick = () => { const rs = $$('.ownRow'); rs.forEach(rw => $('.oP',rw).value = +(100/rs.length).toFixed(4)); ownSync(); };
+  $('#ownEq').onclick = () => { const rs = $$('.ownRow'), sh = N(el('shares').value);
+    if (ownUnit==='sh') { if (!sh) { toast('Enter No. of shares first','err'); return; } const al = allocate(sh, rs.map(()=>100/rs.length)); rs.forEach((rw,i) => $('.oP',rw).value = al[i]); }
+    else rs.forEach(rw => $('.oP',rw).value = +(100/rs.length).toFixed(4));
+    ownSync(); };
+  $('#ownPasteBtn').onclick = () => { const b = $('#ownPasteBox'); b.style.display = b.style.display==='none' ? '' : 'none'; if (b.style.display==='') $('#ownPaste').focus(); };
+  $('#ownPasteGo').onclick = () => {
+    const col = +$('#ownPasteCol').value, skip = /^(total|rate|name|company|s\.?n\.?|sn|owner|grand total)\b/i;
+    const rowsIn = $('#ownPaste').value.split(/\r?\n/).map(l => l.split(/\t|\s{2,}|\|/).map(x=>x.trim()).filter(Boolean)).filter(r => r.length);
+    const out = [];
+    rowsIn.forEach(r => {
+      const name = r.find(c => /[A-Za-zऀ-ॿ]/.test(c) && !/^[\d,.\s%-]+$/.test(c));
+      const nums = r.filter(c => /^-?[\d,]+(\.\d+)?$/.test(c)).map(N);
+      if (!name || skip.test(name) || nums[col] == null) return;
+      out.push({ name, v: nums[col] });
+    });
+    if (!out.length) { $('#ownPasteMsg').textContent = 'No "name + number" rows found'; return; }
+    const tot = out.reduce((a,o)=>a+o.v,0), sh = N(el('shares').value);
+    const asPct = Math.abs(tot-100) < 0.01 && !(sh && Math.round(sh) === 100);
+    ownUnit = asPct ? 'pct' : 'sh'; $$('#ownUnit button').forEach(b=>b.classList.toggle('on', b.dataset.unit===ownUnit));
+    if (!asPct && !sh) el('shares').value = Math.round(tot);
+    fillRows(out); $('#ownPasteBox').style.display = 'none'; $('#ownPaste').value = '';
+    toast(`${out.length} owners added · ${asPct ? 'by %' : fmtQ(tot)+' shares'}`,'ok'); update();
+  };
   el('shares').addEventListener('input', ownSync); el('costPerShare').addEventListener('input', ownSync);
   setOwn(ownMode);
   const pgSync = () => { $('#pgWrap').style.opacity = el('projectStatus').value==='Under Construction' ? 1 : .45; };
@@ -963,7 +1032,9 @@ function openForm(id){
     const o = read(); $$('.f.err').forEach(x=>x.classList.remove('err')); let bad = '';
     if (!o.company.trim()) { el('company').parentNode.classList.add('err'); bad='Company name is required'; }
     if (!(N(o.shares)>0)) { el('shares').parentNode.classList.add('err'); bad = bad || 'No. of shares must be > 0'; }
-    if (isJoint(o)) { const tot = parseOwners(o.owner).reduce((a,x)=>a+x.pct,0); if (Math.abs(tot-100)>0.01) { $('#ownBox').classList.add('err'); bad = bad || `Joint ownership must total 100% (now ${+tot.toFixed(2)}%)`; } }
+    if (isJoint(o)) { const pl = parseOwners(o.owner), tot = pl.reduce((a,x)=>a+x.pct,0);
+      if (pl.bySh && Math.round(pl.totSh) !== Math.round(N(o.shares))) { $('#ownBox').classList.add('err'); bad = bad || `Owners' shares total ${fmtQ(pl.totSh)} but No. of shares is ${fmtQ(N(o.shares))}`; }
+      else if (!pl.bySh && Math.abs(tot-100)>0.01) { $('#ownBox').classList.add('err'); bad = bad || `Joint ownership must total 100% (now ${+tot.toFixed(2)}%)`; } }
     if (N(o.exitedQty) > N(o.shares)+N(o.bonusShares)) { el('exitedQty').parentNode.classList.add('err'); bad = bad || 'Sold qty cannot exceed shares + bonus'; }
     if (o.exitStatus!=='Hold' && N(o.exitedQty)>0 && !(N(o.exitPrice)>0)) { el('exitPrice').parentNode.classList.add('err'); bad = bad || 'Enter the exit price'; }
     if (bad) { $('#fErr').style.color='var(--bad)'; $('#fErr').textContent = bad; return; }
@@ -1075,7 +1146,7 @@ function renderSettings(){
     <b>Unrealized P/L</b> = shares held × (price used − cost). · <b>Total return %</b> = (realized + unrealized) ÷ total cost. ·
     <b>XIRR</b>: annualised return on dated cash flows (investment, exits, current value today). ·
     <b>Locked</b> = shares still held whose lock-in release is in the future (an expected year like 2030E counts as locked until 31 Dec of that year); <b>Liquid</b> = shares still held whose lock-in has been released (or no date set). ·
-    <b>Joint investments</b>: enter owners with % (e.g. “Self 20, Friend A 20, Friend B 20, Friend C 20, Friend D 20”); <i>View as</i> scales every figure to one owner's share; <i>Segregate</i> splits a joint holding into one record per owner. ·
+    <b>Joint investments</b>: enter each owner's <i>no. of shares</i> (e.g. “Self 1050 sh, Friend A 625 sh”, or paste the columns from Excel) or their %; <i>View as</i> scales every figure to one owner's share; <i>Segregate</i> splits a joint holding into one record per owner. ·
     <b>Hold / Partial Exit / Exit</b> is suggested from sold qty (0 → Hold, some → Partial Exit, all → Exit) and can be changed on the form.</div></div>`;
   $('#bridgeLink').href = bridgeHref();
   $('#bridgeCopy').onclick = () => { const code = bridgeHref(); navigator.clipboard.writeText(code).then(() => toast('Bookmark code copied. Create a new bookmark and paste it as the URL','ok'), () => { $('#pxPaste').value = code; toast('Copy the code from the paste box (it is the bookmark URL)','err'); }); };
