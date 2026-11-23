@@ -88,11 +88,14 @@ a{color:var(--brand)}
 .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
 .grid{display:grid;gap:16px}
 .kpis{grid-template-columns:repeat(5,minmax(0,1fr))}
+.kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.kpis.k6{grid-template-columns:repeat(6,minmax(0,1fr))}
 .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .g-73{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
 .kpi{position:relative;overflow:hidden;padding:16px 18px}
-.kpi .lbl{font-size:12px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:6px}
+.kpi .lbl{font-size:12px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:6px;padding-right:34px;min-height:30px}
+.kpi .val{overflow-wrap:anywhere}
 .kpi .val{font-size:23px;font-weight:750;letter-spacing:-.025em;margin-top:8px;line-height:1.1}
 .kpi .foot{font-size:12px;color:var(--muted);margin-top:7px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .kpi.hero{background:linear-gradient(135deg,#0C4DA1 0%,#0a3a7a 70%,#1b2a55 100%);color:#fff;border:0}
@@ -153,12 +156,13 @@ a{color:var(--brand)}
 .chip svg{width:12px;height:12px}
 /* table */
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.filters{display:contents}
 .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:0 12px;min-width:240px;flex:1;max-width:360px}
 .search input{border:0;outline:0;background:transparent;padding:9px 0;width:100%}
 .search svg{width:16px;height:16px;color:var(--muted)}
 .sel{appearance:none;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a93a3' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;border:1px solid var(--border-2);border-radius:10px;padding:9px 30px 9px 12px;font-size:13px;cursor:pointer;max-width:200px}
 .sel.on{border-color:var(--brand);color:var(--brand);background-color:var(--brand-soft)}
-.tbl-wrap{overflow:auto;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);box-shadow:var(--shadow);max-height:calc(100vh - 230px)}
+.tbl-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);box-shadow:var(--shadow);max-height:calc(100vh - 230px)}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
 th{position:sticky;top:0;background:var(--surface-2);text-align:left;font-weight:600;color:var(--text-2);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;z-index:2}
 th.r,td.r{text-align:right}
@@ -260,18 +264,35 @@ tfoot td{position:sticky;bottom:0;background:var(--surface-2);font-weight:700;bo
 .connect h2{margin:0 0 6px;font-size:22px;letter-spacing:-.02em}
 .connect ol{padding-left:18px;color:var(--text-2);font-size:13px;line-height:1.7;margin:10px 0 0}
 .offline{background:var(--surface-2);border:1px solid var(--border);color:var(--text-2)}
-@media (max-width:1200px){.kpis{grid-template-columns:repeat(3,1fr)}.g-73{grid-template-columns:1fr}}
+@media (max-width:1200px){.kpis,.kpis.k6{grid-template-columns:repeat(3,minmax(0,1fr))}.g-73{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:900px){
   .app{grid-template-columns:1fr}.side{display:none}
   @media (display-mode: standalone){ .top{padding-top:calc(12px + env(safe-area-inset-top))} }
-  .kpis{grid-template-columns:repeat(2,1fr)}.g2,.g3{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.g2,.g3,.g-73{grid-template-columns:minmax(0,1fr)}
   .content{padding:16px 14px 90px}.top{padding:12px 14px}
   .fg{grid-template-columns:1fr 1fr}.f.c2{grid-column:1/-1}.preview{grid-template-columns:1fr 1fr}.mgrid{grid-template-columns:1fr 1fr}
   .bnav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:40;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
   .bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--muted);padding:6px 10px;border-radius:10px;cursor:pointer}
   .bnav button.on{color:var(--brand)}.bnav svg{width:20px;height:20px}
   .hide-m{display:none!important}
-  .top{gap:8px}.top .sub{display:none}.top h1{font-size:17px}
+  .top{gap:8px}.top .sub{display:none}.top h1{font-size:17px;line-height:1.2}
+  .kpis,.kpis.k4,.kpis.k6{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .kpi{padding:13px 14px}.kpi .val{font-size:19px}.kpi .foot{font-size:11.5px}.kpi .ico{width:26px;height:26px;right:10px;top:10px}
+  .card{padding:14px}
+  .filters{display:none;width:100%}.filters.open{display:flex;flex-wrap:wrap;gap:8px}
+  .filters .sel{flex:1 1 45%;max-width:none}
+  .search{max-width:none;min-width:0;flex:1 1 100%}
+  .toolbar .seg button{padding:6px 10px}
+  .cards-view{grid-template-columns:1fr}
+  .lockcard{grid-template-columns:1fr 1fr;gap:10px}
+  .month-h{flex-wrap:wrap;gap:2px 10px}
+  .li .r{font-size:12.5px}
+  .m-body,.dr-body{padding:14px}
+  .basis-sw button{font-size:11px}
+  .ownRow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 34px !important;padding:8px;border:1px solid var(--border);border-radius:10px}
+  .ownRow .oN{grid-column:1/-1;grid-row:1}.ownRow .oT{grid-column:1;grid-row:2}.ownRow .oP{grid-column:2;grid-row:2}.ownRow .oX{grid-column:3;grid-row:2}
+  .ownRow .oS{grid-column:1/-1;grid-row:3;text-align:left!important}
+  #ownTot{margin-left:0!important;flex-basis:100%}
   #lensWrap{padding:2px 2px 2px 8px!important}#lensSel{max-width:96px}
   .top .btn{padding:8px 10px}
 }
@@ -778,7 +799,7 @@ function drawDashCharts(R, act){
     options:{ indexAxis:'y', maintainAspectRatio:false, interaction:{mode:'index', axis:'y', intersect:false},
       plugins:{ legend:{ position:'top', align:'start', labels:{ usePointStyle:true, pointStyle:'rectRounded', boxWidth:10, color:B.text2 } },
         tooltip:{ ...B.tooltip, callbacks:{ title: c => top[c[0].dataIndex].h.company, label: c => ` ${c.dataset.label}: ${fmtRs(c.raw,0)}`, footer: c => { const r = top[c[0].dataIndex]; return `P/L ${fmtC(r.unPL)} (${fmtPct(r.unPct,1)}) · ${r.src}`; } } } },
-      scales:{ x:{ grid:{color:B.grid}, border:{display:false}, ticks:{ maxRotation:0, maxTicksLimit:6, callback: v => fmtC(v).replace('Rs ','') } }, y:{ grid:{display:false}, border:{color:B.grid}, ticks:{color:B.text2} } } } });
+      scales:{ x:{ grid:{color:B.grid}, border:{display:false}, ticks:{ maxRotation:0, maxTicksLimit:6, callback: v => fmtC(v).replace('Rs ','') } }, y:{ grid:{display:false}, border:{color:B.grid}, ticks:{color:B.text2, callback(v){ const l=this.getLabelForValue(v), n=innerWidth<900?14:24; return l.length>n?l.slice(0,n-1)+'…':l; }} } } } });
   hbar('cSector', foldOther(groupSum(act,'sector'), 8), css('--s1'));
   hbar('cHolder', foldOther(groupSum(act,'dematHolder'), 8), css('--s7'));
   const om = {}; rows(true).filter(r=>r.rem>0).forEach(r => parseOwners(r.h.owner).forEach(o => { om[o.name] = (om[o.name]||0) + r.curVal*o.pct/100; }));
@@ -831,6 +852,8 @@ function renderHoldings(){
   $('#view').innerHTML = lensNote() + `
   <div class="toolbar">
     <label class="search">${IC.search}<input id="q" placeholder="Search company, symbol, holder, BOID…" value="${esc(S.f.q)}"></label>
+    <button class="btn sm show-m" id="fltBtn" type="button">Filters${Object.entries(S.f).filter(([k,v])=>k!=='q'&&v).length?' ('+Object.entries(S.f).filter(([k,v])=>k!=='q'&&v).length+')':''}</button>
+    <div class="filters${S.fOpen?' open':''}">
     ${fsel('sector','All sectors',uniq('sector'))}
     ${fsel('exit','Hold / Partial / Exit',['Hold','Partial Exit','Exit'])}
     ${fsel('lock','Locked / Liquid',['Locked','Liquid'])}
@@ -840,12 +863,13 @@ function renderHoldings(){
     ${fsel('joint','Single / Joint',['Single','Joint (all)','Family','Friends','Mixed'])}
     ${fsel('tag','Includes…',['Self','Family','Friend'])}
     ${any?'<button class="btn ghost sm" id="clrF">Clear filters</button>':''}
-    <div style="flex:1"></div>
+    </div>
+    <div style="flex:1" class="hide-m"></div>
     <div class="seg"><button data-lay="table" class="${S.layout==='table'?'on':''}" title="Table">${IC.list.replace('<svg','<svg width="15" height="15"')}</button><button data-lay="cards" class="${S.layout==='cards'?'on':''}" title="Cards">${IC.grid.replace('<svg','<svg width="15" height="15"')}</button></div>
     <div class="seg" title="How unlisted shares are valued"><button data-basis="exp" class="${S.basis==='exp'?'on':''}">LTP + Expected</button><button data-basis="cost" class="${S.basis==='cost'?'on':''}">LTP + Cost</button></div>
     <button class="btn sm" id="expCsv">${IC.dl}Export CSV</button>
   </div>
-  <div class="grid kpis" style="margin-bottom:14px;grid-template-columns:repeat(6,minmax(0,1fr))">
+  <div class="grid kpis k6" style="margin-bottom:14px">
     ${miniStat('Showing', R.length+' of '+S.holdings.length)}${miniStat('Shares held', fmtQ(T.rem))}${miniStat('Invested', fmtC(T.invested))}${miniStat('Value · LTP+Exp / LTP+Cost', `<span style="font-size:13.5px">${fmtC(T.curExp)} / ${fmtC(T.curCst)}</span>`)}
     ${miniStat('Locked · Liquid', `<span style="font-size:13.5px">${fmtC(T.lockedVal)} · ${fmtC(T.liquidVal)}</span>`)}${miniStat('Total return', `<span class="${sgn(T.tot)}">${fmtC(T.tot)} · ${fmtPct(T.retPct,1)}</span>`)}
   </div>
@@ -860,6 +884,7 @@ function renderHoldings(){
       <div class="chips">${lockChip(r,r.h)}${listChip(r.h.listing)}${projChip(r.h.projectStatus, r.h.progressPct)}</div></div>`).join('')}</div>`}`;
   const q = $('#q'); q.oninput = debounce(e => { S.f.q = e.target.value; renderHoldings(); const n=$('#q'); n.focus(); n.setSelectionRange(n.value.length,n.value.length); }, 220);
   $$('[data-f]').forEach(s => s.onchange = () => { S.f[s.dataset.f] = s.value; renderHoldings(); });
+  const fb = $('#fltBtn'); if (fb) fb.onclick = () => { S.fOpen = !S.fOpen; $('.filters').classList.toggle('open', S.fOpen); };
   $$('[data-sort]').forEach(th => th.onclick = () => { const k=th.dataset.sort; S.sort = {k, d: S.sort.k===k ? -S.sort.d : (['company','holder','listing','project','status','lock'].includes(k)?1:-1)}; renderHoldings(); });
   $$('[data-id]').forEach(tr => tr.onclick = () => openDrawer(tr.dataset.id));
   $$('[data-lay]').forEach(b => b.onclick = () => { S.layout=b.dataset.lay; try{localStorage.setItem('psp_layout',S.layout)}catch(e){} renderHoldings(); });
@@ -1292,11 +1317,11 @@ function renderLock(){
   const in90 = locked.filter(r=>!r.rel.est && r.daysToRelease<=90), in365 = locked.filter(r=>!r.rel.est && r.daysToRelease<=365);
   const s = l => l.reduce((a,r)=>a+r.curVal,0);
   $('#view').innerHTML = LN + `
-  <div class="grid kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="grid kpis k4">
     <div class="card kpi"><div class="ico" style="background:var(--accent-soft);color:var(--accent)">${IC.lock}</div><div class="lbl">Locked shares</div><div class="val num">${fmtQ(T.lockedQty)}</div><div class="foot">Value <b style="color:var(--text)">${fmtC(T.lockedVal)}</b> · ${locked.length} holdings</div></div>
     <div class="card kpi"><div class="ico" style="background:var(--good-soft);color:var(--good)">${IC.unlock}</div><div class="lbl">Liquid shares</div><div class="val num">${fmtQ(T.liquidQty)}</div><div class="foot">Value <b style="color:var(--text)">${fmtC(T.liquidVal)}</b> · ${free.length} holdings</div></div>
     <div class="card kpi"><div class="lbl">Releasing in 90 days</div><div class="val num">${fmtC(s(in90))}</div><div class="foot">${fmtQ(in90.reduce((a,r)=>a+r.rem,0))} shares · ${in90.length} holdings</div></div>
-    <div class="card kpi"><div class="lbl">Releasing in 12 months <span class="hint">(exact dates)</span></div><div class="val num">${fmtC(s(in365))}</div><div class="foot">${fmtQ(in365.reduce((a,r)=>a+r.rem,0))} shares · ${in365.length} holdings</div></div>
+    <div class="card kpi"><div class="lbl">Releasing in 12 months</div><div class="val num">${fmtC(s(in365))}</div><div class="foot">${fmtQ(in365.reduce((a,r)=>a+r.rem,0))} shares · ${in365.length} holdings · exact dates only</div></div>
   </div>
   <div class="grid g-73" style="margin-top:16px">
     <div class="card"><div class="card-head"><div><h3>Release calendar</h3><div class="hint">Locked promoter shares by release month</div></div></div>
@@ -1500,7 +1525,7 @@ async function boot(){
   S.loading = false; render();
 }
 (function init(){
-  let th = 'light'; try { th = localStorage.getItem('psp_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); S.layout = localStorage.getItem('psp_layout') || 'table'; } catch(e){}
+  let th = 'light'; try { th = localStorage.getItem('psp_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); S.layout = localStorage.getItem('psp_layout') || (innerWidth < 900 ? 'cards' : 'table'); } catch(e){}
   document.documentElement.dataset.theme = th;
   $$('[data-view]').forEach(b => b.onclick = () => go(b.dataset.view));
   $$('[data-add]').forEach(b => b.onclick = () => openForm());
