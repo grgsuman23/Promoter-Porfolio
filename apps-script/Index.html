@@ -330,7 +330,13 @@ async function apiCall(fn, args, cfg){
   cfg = cfg || getCfg();
   let r;
   try { r = await fetch(cfg.url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ token: cfg.token, fn, args }) }); }
-  catch(e){ throw new Error(navigator.onLine ? 'Could not reach your Apps Script backend' : 'You are offline'); }
+  catch(e){
+    if (!navigator.onLine) throw new Error('You are offline');
+    // Diagnose: the GET ping works only if the deployment is public ("Anyone") and runs the new Code.gs
+    let ping = null; try { const pr = await fetch(cfg.url + '?ping=1'); ping = await pr.json(); } catch(_){}
+    if (ping && ping.ok) throw new Error('Web app reached, but the request failed. In Apps Script: Deploy → Manage deployments → ✏ → Version: New version → Deploy, then try again.');
+    throw new Error('Could not reach your web app. In Apps Script check Deploy → Manage deployments: Execute as "Me", Who has access "Anyone" (not "Anyone with Google account"), deployed after saving the new Code.gs, and that you copied the Web app URL ending in /exec.');
+  }
   let j; try { j = await r.json(); } catch(e){ throw new Error('Backend did not return JSON. Check the web app URL and that access is set to "Anyone"'); }
   if (!j.ok) { if (j.code === 'AUTH' && getCfg() && getCfg().token) signOutLocal(true); throw new Error(j.error || 'Request failed'); }
   return j.result;
