@@ -101,6 +101,11 @@ a{color:var(--brand)}
 .kpi .ico svg{width:16px;height:16px}
 .delta{display:inline-flex;align-items:center;gap:3px;font-weight:650;font-size:12px;padding:2px 7px;border-radius:20px}
 .delta.up{color:var(--good);background:var(--good-soft)}.delta.down{color:var(--bad);background:var(--bad-soft)}.delta.flat{color:var(--text-2);background:var(--surface-2)}
+.basis-sw{display:flex;flex-direction:column;gap:4px;margin-top:10px;position:relative;z-index:1}
+.basis-sw button{display:grid;grid-template-columns:1fr auto;gap:0 8px;align-items:baseline;width:100%;text-align:left;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:rgba(255,255,255,.8);border-radius:8px;padding:5px 8px;cursor:pointer;font-size:11.5px}
+.basis-sw button span{grid-column:1/-1;font-size:10.5px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.basis-sw button b{color:#fff;font-size:13.5px}.basis-sw button i{font-style:normal;font-size:11px;opacity:.85}
+.basis-sw button.on{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.55);color:#fff}
+.basis-sw button.on span::before{content:'● '}
 .kpi.hero .delta.up{color:#c9ffd9;background:rgba(34,197,94,.22)}.kpi.hero .delta.down{color:#ffd0d0;background:rgba(237,27,36,.3)}
 .pos{color:var(--good)}.neg{color:var(--bad)}
 /* split bar */
@@ -342,7 +347,7 @@ async function apiCall(fn, args, cfg){
   return j.result;
 }
 const SECTORS = ['Logistics','Commercial Banks','Development Banks','Finance','Microfinance','Hydro Power','Life Insurance','Non Life Insurance','Hotels And Tourism','Manufacturing And Processing','Investment','Trading','Mutual Fund','Others','Cement','Health Care','Education','Information Technology','Agriculture','Real Estate','Infrastructure'];
-const S = { lens:'', holdings:[], prices:{}, companies:[], meta:{}, view:'dashboard', f:{q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:''}, sort:{k:'currentValue',d:-1}, layout:'table', charts:{}, loading:true };
+const S = { basis:'exp', lens:'', holdings:[], prices:{}, companies:[], meta:{}, view:'dashboard', f:{q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:''}, sort:{k:'currentValue',d:-1}, layout:'table', charts:{}, loading:true };
 
 /* ---------------- API ---------------- */
 function call(fn, ...args){
@@ -503,10 +508,19 @@ function calc(h, f){
   const exQ = Math.min(N(h.exitedQty)*f, shares), exP = N(h.exitPrice);
   const rem = shares - exQ;
   const px = S.prices[String(h.symbol||'').toUpperCase()];
-  let price = cost, src = 'Cost';
-  if (N(h.manualLtp)) { price = N(h.manualLtp); src = 'Manual'; }
-  else if (h.listing === 'Listed' && px && px.ltp) { price = px.ltp; src = 'LTP'; }
-  else if (N(h.fairValue)) { price = N(h.fairValue); src = h.listing==='Listed' ? 'Current rate' : 'Expected rate'; }
+  // Two valuation bases for shares still held:
+  //  'exp'  = LTP (listed) + expected rate (unlisted)      'cost' = LTP (listed) + cost (unlisted)
+  // Listed shares without an LTP yet use their current rate in both. A manual LTP override wins in both.
+  const listed = h.listing === 'Listed', fv = N(h.fairValue);
+  let pMkt = null, sMkt = '';
+  if (N(h.manualLtp)) { pMkt = N(h.manualLtp); sMkt = 'Manual'; }
+  else if (listed && px && px.ltp) { pMkt = px.ltp; sMkt = 'LTP'; }
+  else if (listed && fv) { pMkt = fv; sMkt = 'Current rate'; }
+  const priceExp = pMkt != null ? pMkt : (fv || cost), srcExp = pMkt != null ? sMkt : (fv ? 'Expected rate' : 'Cost');
+  const priceCst = pMkt != null ? pMkt : cost,        srcCst = pMkt != null ? sMkt : 'Cost';
+  const useCost = S.basis === 'cost';
+  const price = useCost ? priceCst : priceExp, src = useCost ? srcCst : srcExp;
+  const curValExp = rem*priceExp, curValCst = rem*priceCst;
   const remCost = rem*cost, curVal = rem*price, proceeds = exQ*exP;
   const realPL = exQ*(exP-cost), unPL = rem*(price-cost), totPL = realPL+unPL;
   const derived = exQ<=0 ? 'Hold' : (exQ>=shares ? 'Exit' : 'Partial Exit');
@@ -520,6 +534,7 @@ function calc(h, f){
   const dayChg = (src==='LTP' && px && px.prevClose) ? rem*(px.ltp-px.prevClose) : 0;
   return {
     orig, bonus, shares, rate, cost, exQ, exP, rem, price, src, px, totalCost, remCost, curVal, proceeds, realPL, unPL, totPL,
+    priceExp, priceCst, curValExp, curValCst, totPLExp: realPL + rem*(priceExp-cost), totPLCst: realPL + rem*(priceCst-cost),
     retPct: totalCost ? totPL/totalCost*100 : null, unPct: remCost ? unPL/remCost*100 : null,
     exitStatus, derived, rel, locked, lockedQty: locked?rem:0, liquidQty: locked?0:rem, lockedVal: locked?curVal:0, liquidVal: locked?0:curVal,
     daysToRelease: rel ? daysBetween(t, rel.d) : null,
@@ -533,8 +548,8 @@ function rows(all){
   return S.holdings.map(h => [h, ownerPct(h, S.lens)/100]).filter(x=>x[1]>0).map(([h,f]) => Object.assign({h, f}, calc(h, f)));
 }
 function totals(list){
-  const t = {invested:0, remCost:0, cur:0, real:0, un:0, proceeds:0, shares:0, rem:0, lockedQty:0, liquidQty:0, lockedVal:0, liquidVal:0, day:0, flows:[], active:0, exited:0, partial:0};
-  list.forEach(r => { t.invested+=r.totalCost; t.remCost+=r.remCost; t.cur+=r.curVal; t.real+=r.realPL; t.un+=r.unPL; t.proceeds+=r.proceeds; t.shares+=r.shares; t.rem+=r.rem; t.lockedQty+=r.lockedQty; t.liquidQty+=r.liquidQty; t.lockedVal+=r.lockedVal; t.liquidVal+=r.liquidVal; t.day+=r.dayChg; t.flows.push(...r.flows);
+  const t = {curExp:0, curCst:0, totExp:0, totCst:0, invested:0, remCost:0, cur:0, real:0, un:0, proceeds:0, shares:0, rem:0, lockedQty:0, liquidQty:0, lockedVal:0, liquidVal:0, day:0, flows:[], active:0, exited:0, partial:0};
+  list.forEach(r => { t.curExp+=r.curValExp; t.curCst+=r.curValCst; t.totExp+=r.totPLExp; t.totCst+=r.totPLCst; t.invested+=r.totalCost; t.remCost+=r.remCost; t.cur+=r.curVal; t.real+=r.realPL; t.un+=r.unPL; t.proceeds+=r.proceeds; t.shares+=r.shares; t.rem+=r.rem; t.lockedQty+=r.lockedQty; t.liquidQty+=r.liquidQty; t.lockedVal+=r.lockedVal; t.liquidVal+=r.liquidVal; t.day+=r.dayChg; t.flows.push(...r.flows);
     if(r.exitStatus==='Exit') t.exited++; else { t.active++; if(r.exitStatus==='Partial Exit') t.partial++; } });
   t.tot = t.real + t.un; t.retPct = t.invested ? t.tot/t.invested*100 : null; t.xirr = xirr(t.flows);
   return t;
@@ -632,6 +647,7 @@ function renderDash(){
   const upcoming = act.filter(r=>r.locked).sort((a,b)=>a.daysToRelease-b.daysToRelease || (a.rel.est-b.rel.est));
   const next = upcoming[0];
   const dayPct = (T.cur - T.day) ? T.day/(T.cur - T.day)*100 : 0;
+  const basisHint = `<span class="hint">Valued at ${basisLabel()}</span>`;
   const lockPct = T.cur ? T.lockedVal/T.cur*100 : 0;
   const listedVal = act.filter(r=>r.h.listing==='Listed').reduce((s,r)=>s+r.curVal,0);
   const offl = S.meta.offline ? `<div class="banner offline">📴 <span>Showing the copy saved on this device. Tap ⟳ to refresh when you're back online.</span></div>` : '';
@@ -639,10 +655,11 @@ function renderDash(){
   const err = (S.meta.lastPriceStatus||'').startsWith('ERR') ? `<div class="banner" style="background:var(--bad-soft)">⚠️ <span>Last LTP refresh failed: ${esc(S.meta.lastPriceStatus)}. Values use the last saved LTP.</span></div>` : '';
   $('#view').innerHTML = banner + err + lensNote() + `
   <div class="grid kpis">
-    <div class="card kpi hero"><div class="lbl">Current portfolio value</div><div class="val num">${fmtC(T.cur)}</div>
-      <div class="foot">${delta(T.retPct, fmtPct(T.retPct)+' total')} ${T.day ? delta(T.day, fmtPct(dayPct)+' today') : ''}</div></div>
+    <div class="card kpi hero" style="grid-row:span 1"><div class="lbl">Current portfolio value</div><div class="val num">${fmtC(T.cur)}</div>
+      <div class="foot">${delta(T.retPct, fmtPct(T.retPct)+' total')} ${T.day ? delta(T.day, fmtPct(dayPct)+' today') : ''}</div>
+      <div class="basis-sw">${basisBtn('exp', 'LTP + expected rate', T.curExp, T.invested ? T.totExp/T.invested*100 : null)}${basisBtn('cost', 'LTP + cost (unlisted)', T.curCst, T.invested ? T.totCst/T.invested*100 : null)}</div></div>
     <div class="card kpi"><div class="ico" style="background:var(--brand-soft);color:var(--brand)">${IC.wallet}</div><div class="lbl">Total invested</div><div class="val num">${fmtC(T.invested)}</div><div class="foot">${R.length} investments · ${fmtC(T.remCost)} still deployed</div></div>
-    <div class="card kpi"><div class="ico" style="background:var(--good-soft);color:var(--good)">${IC.trend}</div><div class="lbl">Unrealized P/L</div><div class="val num ${sgn(T.un)}">${fmtC(T.un)}</div><div class="foot">${delta(T.un, fmtPct(T.remCost?T.un/T.remCost*100:0))} on holdings</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--good-soft);color:var(--good)">${IC.trend}</div><div class="lbl">Unrealized P/L</div><div class="val num ${sgn(T.un)}">${fmtC(T.un)}</div><div class="foot">${delta(T.un, fmtPct(T.remCost?T.un/T.remCost*100:0))} at ${S.basis==='cost'?'LTP + cost':'LTP + expected'}</div></div>
     <div class="card kpi"><div class="ico" style="background:var(--accent-soft);color:var(--accent)">${IC.coins}</div><div class="lbl">Realized P/L</div><div class="val num ${sgn(T.real)}">${fmtC(T.real)}</div><div class="foot">${fmtC(T.proceeds)} exit proceeds</div></div>
     <div class="card kpi"><div class="ico" style="background:var(--brand-soft);color:var(--brand)">${IC.pct}</div><div class="lbl">Portfolio XIRR</div><div class="val num ${sgn(T.xirr)}">${T.xirr==null?'—':fmtPct(T.xirr*100,1)}</div><div class="foot">Annualised, all cash flows</div></div>
   </div>
@@ -686,6 +703,10 @@ function renderDash(){
   </div>`;
   drawDashCharts(R, act);
 }
+/** Hero-card switch: both valuations shown, the selected one drives every other figure. */
+function basisBtn(b, label, val, ret){ return `<button class="${S.basis===b?'on':''}" onclick="setBasis('${b}')" title="Use this valuation for P/L, returns and charts"><span>${label}</span><b class="num">${fmtC(val)}</b><i class="num">${fmtPct(ret,1)}</i></button>`; }
+function setBasis(b){ S.basis = b; try{ localStorage.setItem('psp_basis', b); }catch(e){} render(); }
+const basisLabel = () => S.basis==='cost' ? 'LTP + cost (unlisted)' : 'LTP + expected rate';
 function cdBox(r){ return r.rel.est ? `<div class="cd" title="Expected year">${r.rel.y}<small>expected</small></div>` : `<div class="cd ${r.daysToRelease<=30?'soon':''}">${r.daysToRelease}<small>days</small></div>`; }
 function statusRow(title, parts, fmt){
   const tot = parts.reduce((s,p)=>s+p[1],0) || 1;
@@ -777,10 +798,11 @@ function renderHoldings(){
     ${any?'<button class="btn ghost sm" id="clrF">Clear filters</button>':''}
     <div style="flex:1"></div>
     <div class="seg"><button data-lay="table" class="${S.layout==='table'?'on':''}" title="Table">${IC.list.replace('<svg','<svg width="15" height="15"')}</button><button data-lay="cards" class="${S.layout==='cards'?'on':''}" title="Cards">${IC.grid.replace('<svg','<svg width="15" height="15"')}</button></div>
+    <div class="seg" title="How unlisted shares are valued"><button data-basis="exp" class="${S.basis==='exp'?'on':''}">LTP + Expected</button><button data-basis="cost" class="${S.basis==='cost'?'on':''}">LTP + Cost</button></div>
     <button class="btn sm" id="expCsv">${IC.dl}Export CSV</button>
   </div>
   <div class="grid kpis" style="margin-bottom:14px;grid-template-columns:repeat(6,minmax(0,1fr))">
-    ${miniStat('Showing', R.length+' of '+S.holdings.length)}${miniStat('Shares held', fmtQ(T.rem))}${miniStat('Invested', fmtC(T.invested))}${miniStat('Current value', fmtC(T.cur))}
+    ${miniStat('Showing', R.length+' of '+S.holdings.length)}${miniStat('Shares held', fmtQ(T.rem))}${miniStat('Invested', fmtC(T.invested))}${miniStat('Value · LTP+Exp / LTP+Cost', `<span style="font-size:13.5px">${fmtC(T.curExp)} / ${fmtC(T.curCst)}</span>`)}
     ${miniStat('Locked · Liquid', `<span style="font-size:13.5px">${fmtC(T.lockedVal)} · ${fmtC(T.liquidVal)}</span>`)}${miniStat('Total return', `<span class="${sgn(T.tot)}">${fmtC(T.tot)} · ${fmtPct(T.retPct,1)}</span>`)}
   </div>
   ${!R.length ? `<div class="card empty">${IC.box}No holdings match these filters.</div>` : S.layout==='table' ? `
@@ -798,6 +820,7 @@ function renderHoldings(){
   $$('[data-id]').forEach(tr => tr.onclick = () => openDrawer(tr.dataset.id));
   $$('[data-lay]').forEach(b => b.onclick = () => { S.layout=b.dataset.lay; try{localStorage.setItem('psp_layout',S.layout)}catch(e){} renderHoldings(); });
   $('#expCsv').onclick = () => exportCsv(R);
+  $$('[data-basis]').forEach(b => b.onclick = () => setBasis(b.dataset.basis));
   const c = $('#clrF'); if (c) c.onclick = () => { S.f = {q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:''}; renderHoldings(); };
 }
 const miniStat = (l,v) => `<div class="card" style="padding:12px 14px"><div class="hint">${l}</div><div class="num" style="font-weight:700;font-size:15px;margin-top:4px">${v}</div></div>`;
@@ -820,7 +843,7 @@ function openDrawer(id){
     <button class="icon-btn" onclick="closeAll()">${IC.x}</button></div></div>
   <div class="dr-body">
     <div class="mgrid">
-      <div class="mbox"><span>Current value</span><b class="num">${fmtC(r.curVal)}</b><small>${fmtQ(r.rem)} sh @ ${nf2.format(r.price)} (${r.src})</small></div>
+      <div class="mbox"><span>Current value · ${S.basis==='cost'?'LTP+cost':'LTP+expected'}</span><b class="num">${fmtC(r.curVal)}</b><small>${fmtQ(r.rem)} sh @ ${nf2.format(r.price)} (${r.src})${r.priceExp!==r.priceCst?`<br>${S.basis==='cost'?'At expected rate':'At cost'}: ${fmtC(S.basis==='cost'?r.curValExp:r.curValCst)}`:''}</small></div>
       <div class="mbox"><span>Total return</span><b class="num ${sgn(r.totPL)}">${fmtC(r.totPL)}</b><small class="${sgn(r.retPct)}">${fmtPct(r.retPct,2)} on cost</small></div>
       <div class="mbox"><span>XIRR (annualised)</span><b class="num ${sgn(r.xirr)}">${r.xirr==null?'—':fmtPct(r.xirr*100,1)}</b><small>Held ${dur(r.heldDays)}</small></div>
       <div class="mbox"><span>Unrealized P/L</span><b class="num ${sgn(r.unPL)}">${fmtC(r.unPL)}</b><small>${fmtPct(r.unPct,1)}</small></div>
@@ -1176,7 +1199,7 @@ function renderSettings(){
   </div>
   <div class="card" style="margin-top:16px"><h3>How values are calculated</h3><div class="hint" style="line-height:1.7;margin-top:8px">
     <b>Shares held</b> = no. of shares + bonus shares − sold qty; cost per share is the investment spread over shares + bonus. · <b>Price used</b>: Manual LTP override → nepalstock.com LTP (listed) → Current / expected rate → Cost. ·
-    <b>Current value</b> = shares still held × price used. · <b>Realized P/L</b> = exited qty × (avg exit price − cost). ·
+    <b>Current value</b> = shares still held × price used, shown two ways: <i>LTP + expected rate</i> (unlisted at your expected rate) and <i>LTP + cost</i> (unlisted at cost); the switch on the dashboard picks which one drives P/L, returns and charts. · <b>Realized P/L</b> = exited qty × (avg exit price − cost). ·
     <b>Unrealized P/L</b> = shares held × (price used − cost). · <b>Total return %</b> = (realized + unrealized) ÷ total cost. ·
     <b>XIRR</b>: annualised return on dated cash flows (investment, exits, current value today). ·
     <b>Locked</b> = shares still held whose lock-in release is in the future (an expected year like 2030E counts as locked until 31 Dec of that year); <b>Liquid</b> = shares still held whose lock-in has been released (or no date set). ·
@@ -1269,7 +1292,7 @@ function download(name, text){
   catch(e){ navigator.clipboard.writeText(text).then(()=>toast('Copied CSV to clipboard','ok'), ()=>toast('Download blocked','err')); }
 }
 function exportCsv(R){
-  const extra = [['Shares Held (incl. bonus)',r=>r.rem],['Adj. Cost per Share',r=>r.cost.toFixed(4)],['Price Used',r=>r.price],['Price Source',r=>r.src],['Total Cost',r=>r.totalCost.toFixed(2)],['Current Value',r=>r.curVal.toFixed(2)],['Realized P/L',r=>r.realPL.toFixed(2)],['Unrealized P/L',r=>r.unPL.toFixed(2)],['Total Return %',r=>r.retPct==null?'':r.retPct.toFixed(2)],['XIRR %',r=>r.xirr==null?'':(r.xirr*100).toFixed(2)],['Lock-in Status',r=>r.rem<=0?'Exited':r.locked?'Locked':'Released'],['Locked Shares',r=>r.lockedQty],['Liquid Shares',r=>r.liquidQty],['Locked Value',r=>r.lockedVal.toFixed(2)],['Liquid Value',r=>r.liquidVal.toFixed(2)]];
+  const extra = [['Value @ LTP + Expected Rate',r=>r.curValExp.toFixed(2)],['Value @ LTP + Cost',r=>r.curValCst.toFixed(2)],['Shares Held (incl. bonus)',r=>r.rem],['Adj. Cost per Share',r=>r.cost.toFixed(4)],['Price Used',r=>r.price],['Price Source',r=>r.src],['Total Cost',r=>r.totalCost.toFixed(2)],['Current Value',r=>r.curVal.toFixed(2)],['Realized P/L',r=>r.realPL.toFixed(2)],['Unrealized P/L',r=>r.unPL.toFixed(2)],['Total Return %',r=>r.retPct==null?'':r.retPct.toFixed(2)],['XIRR %',r=>r.xirr==null?'':(r.xirr*100).toFixed(2)],['Lock-in Status',r=>r.rem<=0?'Exited':r.locked?'Locked':'Released'],['Locked Shares',r=>r.lockedQty],['Liquid Shares',r=>r.liquidQty],['Locked Value',r=>r.lockedVal.toFixed(2)],['Liquid Value',r=>r.liquidVal.toFixed(2)]];
   const lines = [CSV_COLS.map(c=>c[1]).concat(extra.map(e=>e[0])).map(csvCell).join(',')];
   R.forEach(r => lines.push(CSV_COLS.map(c=> c[0]==='exitStatus'?r.exitStatus:r.h[c[0]]).concat(extra.map(e=>e[1](r))).map(csvCell).join(',')));
   download('promoter-portfolio-'+todayISO()+'.csv', lines.join('\n'));
@@ -1341,7 +1364,7 @@ async function boot(){
   if (!window.IN_GAS && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
   window.addEventListener('online', () => { if (MODE()==='api') boot(); });
   $('#lensSel').onchange = e => { S.lens = e.target.value; try{ localStorage.setItem('psp_lens', S.lens); }catch(err){} render(); };
-  try { S.lens = localStorage.getItem('psp_lens') || ''; } catch(e){}
+  try { S.lens = localStorage.getItem('psp_lens') || ''; S.basis = localStorage.getItem('psp_basis') === 'cost' ? 'cost' : 'exp'; } catch(e){}
   $('#themeBtn').onclick = () => setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
   $('#scrim').onclick = closeTop;
   document.addEventListener('keydown', e => { if (e.key==='Escape') closeTop(); if ((e.key==='n'||e.key==='N') && !/input|textarea|select/i.test(document.activeElement.tagName) && !$('#formModal').classList.contains('on')) { e.preventDefault(); openForm(); } if (e.key==='/' && S.view==='holdings' && document.activeElement.id!=='q') { e.preventDefault(); $('#q').focus(); } });

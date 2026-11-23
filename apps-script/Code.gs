@@ -75,7 +75,8 @@ const CALC_COLS = [
   ['liquidQty', 'Liquid Shares'],
   ['lockedValue', 'Locked Value'],
   ['liquidValue', 'Liquid Value'],
-  ['totalReturnPct', 'Total Return %']
+  ['totalReturnPct', 'Total Return %'],
+  ['currentValueCost', 'Current Value (LTP + Cost)']
 ];
 const DATE_KEYS = ['investDate', 'listingDate', 'lockinDate', 'exitDate'];
 const NUM_KEYS = ['progressPct', 'shares', 'bonusShares', 'costPerShare', 'exitedQty', 'exitPrice', 'fairValue', 'manualLtp'];
@@ -652,7 +653,7 @@ function recalcSheet_() {
   const hs = readHoldings_();
   const out = hs.map(h => {
     const c = calc_(h, prices);
-    return [c.totalCost, c.remainingQty, c.priceUsed, c.currentValue, c.realizedPL, c.unrealizedPL, c.lockStatus, c.lockedQty, c.liquidQty, c.lockedValue, c.liquidValue, c.totalReturnPct === '' ? '' : c.totalReturnPct / 100];
+    return [c.totalCost, c.remainingQty, c.priceUsed, c.currentValue, c.realizedPL, c.unrealizedPL, c.lockStatus, c.lockedQty, c.liquidQty, c.lockedValue, c.liquidValue, c.totalReturnPct === '' ? '' : c.totalReturnPct / 100, c.currentValueCost];
   });
   const start = COLS.length + 1;
   sh.getRange(2, start, out.length, CALC_COLS.length).setValues(out);
@@ -660,6 +661,7 @@ function recalcSheet_() {
   sh.getRange(2, start + 7, out.length, 2).setNumberFormat('#,##0');
   sh.getRange(2, start + 9, out.length, 2).setNumberFormat('#,##0.00');
   sh.getRange(2, start + 11, out.length, 1).setNumberFormat('0.00%');
+  sh.getRange(2, start + 12, out.length, 1).setNumberFormat('#,##0.00');
 }
 
 function calc_(h, prices) {
@@ -673,6 +675,11 @@ function calc_(h, prices) {
   if (num_(h.manualLtp)) price = num_(h.manualLtp);
   else if (h.listing === 'Listed' && px && px.ltp) price = px.ltp;
   else if (num_(h.fairValue)) price = num_(h.fairValue);
+  // cost basis: listed at LTP (or current rate until LTP arrives), unlisted at cost
+  let priceCost = cb;
+  if (num_(h.manualLtp)) priceCost = num_(h.manualLtp);
+  else if (h.listing === 'Listed' && px && px.ltp) priceCost = px.ltp;
+  else if (h.listing === 'Listed' && num_(h.fairValue)) priceCost = num_(h.fairValue);
   const realized = exQ * (exP - cb);
   const unreal = rem * (price - cb);
   // Locked = still held and lock-in release (exact date, or expected year 'YYYYE' = end of that year) is in the future.
@@ -682,7 +689,7 @@ function calc_(h, prices) {
   const lockedQty = locked ? rem : 0, liquidQty = locked ? 0 : rem;
   return { totalCost: totalCost, remainingQty: rem, priceUsed: price, currentValue: rem * price, realizedPL: realized, unrealizedPL: unreal,
     lockStatus: rem <= 0 ? 'Exited' : (locked ? 'Locked' : 'Released'), lockedQty: lockedQty, liquidQty: liquidQty, lockedValue: lockedQty * price, liquidValue: liquidQty * price,
-    totalReturnPct: totalCost ? ((realized + unreal) / totalCost) * 100 : '' };
+    totalReturnPct: totalCost ? ((realized + unreal) / totalCost) * 100 : '', currentValueCost: rem * priceCost };
 }
 function releaseDate_(v) {
   v = String(v || '').trim();
