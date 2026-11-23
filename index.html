@@ -879,7 +879,7 @@ function openDrawer(id){
     ${tl.length?`<div class="sec-t">Timeline</div><div class="tl">${tl.map(t=>`<div class="tl-i ${t[0]>todayISO()?'fut':''}"><b>${t[1]}</b><span>${fmtD(t[0])}${t[2]?' · '+t[2]:''}</span></div>`).join('')}</div>`:''}
     ${h.notes?`<div class="sec-t">Notes</div><div class="card" style="white-space:pre-wrap;font-size:13px">${esc(h.notes)}</div>`:''}
   </div>
-  <div class="dr-foot"><button class="btn danger" onclick="askDelete('${h.id}')">${IC.trash}Delete</button><div style="flex:1"></div>${isJoint(h)?`<button class="btn" onclick="openSegregate('${h.id}')">${IC.layers}Segregate</button>`:''}${r.rem>0?`<button class="btn" onclick="openExit('${h.id}')">${IC.exit}Record exit</button>`:''}<button class="btn pri" onclick="openForm('${h.id}')">${IC.edit}Edit</button></div>`;
+  <div class="dr-foot"><button class="btn danger" onclick="askDelete('${h.id}')">${IC.trash}Delete</button><div style="flex:1"></div>${mergeCandidates(h).length?`<button class="btn" onclick="openMerge('${h.id}')" title="Combine with other holdings of this company">${IC.layers}Merge${segSiblings(h).length?' back':''}</button>`:''}${isJoint(h)?`<button class="btn" onclick="openSegregate('${h.id}')">${IC.layers}Segregate</button>`:''}${r.rem>0?`<button class="btn" onclick="openExit('${h.id}')">${IC.exit}Record exit</button>`:''}<button class="btn pri" onclick="openForm('${h.id}')">${IC.edit}Edit</button></div>`;
   $('#drawer').classList.add('on'); $('#scrim').classList.add('on');
 }
 function ownSplitHtml(h, r){
@@ -893,6 +893,69 @@ function ownSplitHtml(h, r){
   ${os.map((o,i)=>{ const f=o.pct/100; return `<tr style="cursor:default${S.lens&&S.lens.toLowerCase()===o.name.toLowerCase()?';background:var(--brand-soft)':''}"><td><b>${esc(o.name)}</b> ${tagChip(o.tag)}</td><td class="r num">${+o.pct.toFixed(2)}%</td><td class="r num">${fmtQ(sh[i]+bo[i]-sq[i])}${bo[i]?`<span class="sub2">${fmtQ(sh[i])} + ${fmtQ(bo[i])} bonus</span>`:''}</td><td class="r num">${fmtRs(r.totalCost*f,0)}</td><td class="r num">${fmtRs(r.curVal*f,0)}</td><td class="r num ${sgn(r.totPL)}">${fmtRs(r.totPL*f,0)}</td></tr>`; }).join('')}
   </tbody><tfoot><tr><td>Total</td><td class="r num ${Math.abs(tot-100)>0.01?'neg':''}">${+tot.toFixed(2)}%</td><td class="r num">${fmtQ(r.rem)}</td><td class="r num">${fmtRs(r.totalCost,0)}</td><td class="r num">${fmtRs(r.curVal,0)}</td><td class="r num">${fmtRs(r.totPL,0)}</td></tr></tfoot></table></div>
   <div class="hint" style="margin-top:6px">Held jointly in ${esc(h.dematHolder||'one demat')}. Use <b>Segregate</b> when the shares are split into each owner's own demat.</div>`;
+}
+/* ---------------- merge (undo a segregation, or combine holdings of one company) ---------------- */
+const segOrigin = h => { const m = String(h.notes||'').match(/Segregated \S+ from joint holding (\S+) \(.*?; demat ([^)]*)\)/); return m ? { id: m[1], demat: m[2] } : null; };
+const coKey = s => String(s||'').toLowerCase().replace(/\b(ltd|limited|pvt|private|co|company)\b/g,'').replace(/[^a-z0-9]/g,'');
+/** Other holdings of the same company (same symbol, or same name). */
+function mergeCandidates(h){ return S.holdings.filter(x => x.id !== h.id && ((h.symbol && x.symbol === h.symbol) || coKey(x.company) === coKey(h.company))); }
+/** Holdings created by the same Segregate as h. */
+function segSiblings(h){ const o = segOrigin(h); return o ? S.holdings.filter(x => x.id !== h.id && (segOrigin(x)||{}).id === o.id) : []; }
+/** Builds one joint holding from several: owners keep their exact shares and tags; shares, bonus and sold qty add up. */
+function buildMerged(list, demat){
+  const owners = new Map(); let orig = 0, bonus = 0, sold = 0, cost = 0, soldAmt = 0;
+  list.forEach(h => {
+    const os = parseOwners(h.owner), sh = ownerAlloc(os, h.shares, true);
+    os.forEach((o, i) => { const k = o.name.toLowerCase(); const cur = owners.get(k) || { name: o.name, tag: o.tag, sh: 0 }; cur.sh += sh[i]; if (!cur.tag && o.tag) cur.tag = o.tag; owners.set(k, cur); });
+    orig += N(h.shares); bonus += N(h.bonusShares); sold += N(h.exitedQty); cost += N(h.shares) * N(h.costPerShare); soldAmt += N(h.exitedQty) * N(h.exitPrice);
+  });
+  const first = list[0], dates = k => list.map(h => h[k]).filter(Boolean).sort();
+  const ol = [...owners.values()];
+  const ownerStr = ol.length === 1 ? ol[0].name + (ol[0].tag && ol[0].tag !== 'Self' ? ' #' + ol[0].tag.toLowerCase() : '')
+    : ol.map(o => `${o.name} #${(o.tag || 'Family').toLowerCase()} ${Math.round(o.sh)} sh`).join(', ');
+  const notes = list.map(h => String(h.notes||'').split('\n').filter(l => !/^Segregated \S+ from joint holding/.test(l)).join('\n')).filter(Boolean);
+  return Object.assign({}, first, {
+    owner: ownerStr, dematHolder: demat || first.dematHolder, boid: list.every(h => h.boid === first.boid) ? first.boid : '',
+    shares: orig, bonusShares: bonus || '', costPerShare: orig ? +(cost / orig).toFixed(4) : first.costPerShare,
+    exitedQty: sold || '', exitPrice: sold ? +(soldAmt / sold).toFixed(4) : '', exitDate: sold ? (dates('exitDate').pop() || '') : '',
+    exitStatus: !sold ? 'Hold' : sold >= orig + bonus ? 'Exit' : 'Partial Exit',
+    investDate: dates('investDate')[0] || first.investDate,
+    notes: [...new Set(notes)].join('\n') + (notes.length ? '\n' : '') + `Merged ${todayISO()} from ${list.length} holdings`
+  });
+}
+function openMerge(id){
+  const h = S.holdings.find(x => x.id === id), sib = segSiblings(h).map(x => x.id), cands = mergeCandidates(h), origin = segOrigin(h);
+  const pick = cands.map(x => ({ x, on: sib.length ? sib.includes(x.id) : true }));
+  const idx = x => S.holdings.findIndex(y => y.id === x.id);   // keep sheet order (= original owner order after a Segregate)
+  const all = () => [h].concat(pick.filter(p => p.on).map(p => p.x)).sort((a,b) => idx(a) - idx(b));
+  const rowHtml = x => { const os = parseOwners(x.owner); return `<b>${esc(os.map(o=>o.name).join(', '))}</b> ${os.length===1?tagChip(os[0].tag):kindChip(x)}<span class="sub2">${fmtQ(N(x.shares))} sh${N(x.bonusShares)?' + '+fmtQ(N(x.bonusShares))+' bonus':''} @ Rs ${nf2.format(N(x.costPerShare))} · demat ${esc(x.dematHolder||'—')}${N(x.exitedQty)?' · sold '+fmtQ(N(x.exitedQty)):''}</span>`; };
+  smallModal(`Merge · ${esc(h.company)}`, `
+    <p class="hint" style="margin-top:0">${sib.length ? `These holdings came from one joint holding split on ${esc((String(h.notes).match(/Segregated (\S+)/)||[])[1]||'')}. Merging puts them back together.` : 'Combine holdings of this company into one joint holding.'} Each owner keeps their exact shares and Self / Family / Friend tag. Shares, bonus and sold qty are added up, and the rate becomes the weighted average.</p>
+    <div class="list" style="border:1px solid var(--border);border-radius:12px;padding:4px 10px;margin-bottom:12px">
+      <label class="li" style="cursor:default"><input type="checkbox" checked disabled><div class="m">${rowHtml(h)}</div></label>
+      ${pick.map((p,i) => `<label class="li"><input type="checkbox" class="mgC" data-i="${i}" ${p.on?'checked':''}><div class="m">${rowHtml(p.x)}</div></label>`).join('')}
+    </div>
+    <div class="fg" style="grid-template-columns:1fr"><div class="f"><label>Demat account holder of the merged holding</label><input id="mgDemat" list="dlHoldM" value="${esc(origin ? origin.demat : h.dematHolder || '')}"><datalist id="dlHoldM">${uniq('dematHolder').map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div></div>
+    <div id="mgPrev" style="margin-top:12px"></div>`, 'Merge', async () => {
+      const list = all(); if (list.length < 2) { toast('Tick at least one other holding to merge','err'); return false; }
+      const merged = buildMerged(list, $('#mgDemat').value.trim());
+      const rates = [...new Set(list.map(x => N(x.costPerShare)))];
+      let res = await call('api_saveHolding', merged);
+      for (const x of list.slice(1)) res = await call('api_deleteHolding', x.id);
+      applyData(res.data); closeAll(); toast(`Merged ${list.length} holdings into one${rates.length > 1 ? ' (rate averaged)' : ''}`,'ok'); render(); openDrawer(list[0].id); return true;
+    });
+  $('#smallModal').style.width = 'min(680px,96vw)';
+  const prev = () => {
+    const list = all(), m = buildMerged(list, $('#mgDemat').value.trim()), os = parseOwners(m.owner);
+    const lk = [...new Set(list.map(x => x.lockinDate||''))], rates = [...new Set(list.map(x => N(x.costPerShare)))];
+    $('#mgPrev').innerHTML = list.length < 2 ? '<div class="hint">Tick holdings to merge.</div>' : `<div class="banner" style="background:var(--brand-soft);border-color:transparent;display:block">
+      <b>Result:</b> ${fmtQ(N(m.shares))} shares${N(m.bonusShares)?' + '+fmtQ(N(m.bonusShares))+' bonus':''} @ Rs ${nf2.format(N(m.costPerShare))} = ${fmtRs(N(m.shares)*N(m.costPerShare),0)} · ${os.length} owner${os.length>1?'s':''} · status ${m.exitStatus}
+      <div class="hint" style="margin-top:4px">${esc(os.map(o => o.name + (os.bySh ? ' ' + fmtQ(o.sh) : '')).join(' · '))}</div>
+      ${rates.length > 1 ? '<div class="hint neg" style="margin-top:4px">Rates differ; the merged rate is the weighted average.</div>' : ''}
+      ${lk.length > 1 ? '<div class="hint neg" style="margin-top:4px">Lock-in dates differ; the first holding\'s date is kept.</div>' : ''}</div>`;
+  };
+  $$('.mgC').forEach(c => c.onchange = () => { pick[+c.dataset.i].on = c.checked; prev(); });
+  $('#mgDemat').oninput = prev; prev();
 }
 function openSegregate(id){
   const h = S.holdings.find(x=>x.id===id), r = calc(h), os = parseOwners(h.owner), pc = os.map(o=>o.pct);
