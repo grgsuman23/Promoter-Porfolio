@@ -61,6 +61,10 @@ def main():
         print("company list failed:", e)
 
     old = json.loads(OUT.read_text()) if OUT.exists() else {}
+    # nepalstock.com lists only scrips traded today: keep the last known price for the rest
+    today = {r[0] for r in rows}
+    rows += [r for r in old.get("p", []) if r and r[0] not in today]
+    rows.sort(key=lambda r: r[0])
     if old.get("p") == rows and (not companies or old.get("c") == companies):
         print(f"No change in {len(rows)} prices; not rewriting")
         return
