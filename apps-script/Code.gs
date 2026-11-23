@@ -87,7 +87,7 @@ const EXIT_STATUSES = ['Hold', 'Partial Exit', 'Exit'];
 // Two ways in:
 //  1. The Apps Script-hosted page (google.script.run): allowed only for the script owner.
 //  2. The JSON API (doPost) used by the GitHub Pages / mobile app: password login → 30-day device session.
-//     Set the password from the Sheet menu: Promoter Portfolio → Set app PIN / password (owner only).
+//     Set the PIN: Apps Script → Project Settings → Script Properties → APP_PIN (or Sheet menu: Promoter Portfolio → Set app PIN / password).
 let API_AUTHED_ = false;
 const PROP_PW = 'APP_PW_HASH', PROP_SESS = 'APP_SESSIONS';
 const SESSION_DAYS = 30, MAX_FAILS = 5, LOCK_MIN = 60;   // 5 wrong tries → locked for 1 hour
@@ -140,8 +140,18 @@ function login_(pw) {
   const cache = CacheService.getScriptCache();
   const fails = Number(cache.get('pw_fails') || 0);
   if (fails >= MAX_FAILS) throw new Error('Too many wrong attempts. Try again in ' + LOCK_MIN + ' minutes.');
-  const stored = PropertiesService.getScriptProperties().getProperty(PROP_PW);
-  if (!stored) throw new Error('No app PIN set yet. In the Google Sheet use the menu Promoter Portfolio → Set app PIN / password.');
+  const props = PropertiesService.getScriptProperties();
+  // Easiest way to set or change the PIN: Apps Script → Project Settings → Script Properties → add APP_PIN.
+  // On the next sign-in it is converted to a salted hash, the plain value is deleted and all devices are signed out.
+  const plain = props.getProperty('APP_PIN');
+  if (plain && plain.trim().length >= 4) {
+    const s0 = Utilities.getUuid();
+    props.setProperty(PROP_PW, s0 + ':' + sha_(s0 + plain.trim()));
+    props.deleteProperty('APP_PIN'); props.deleteProperty(PROP_SESS);
+    log_('password', 'app PIN set from Script Properties');
+  }
+  const stored = props.getProperty(PROP_PW);
+  if (!stored) throw new Error('No app PIN set yet. In Apps Script open Project Settings → Script Properties → Add script property: APP_PIN = your PIN, then Save and sign in again.');
   const [salt, hash] = stored.split(':');
   if (!safeEq_(sha_(salt + String(pw || '')), hash)) {
     cache.put('pw_fails', String(fails + 1), LOCK_MIN * 60);

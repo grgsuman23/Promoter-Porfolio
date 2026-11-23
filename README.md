@@ -18,7 +18,7 @@ GitHub Action ── nepalstock.com ──▶ prices.json ───┘  (read on
 1. Create a Google Sheet → **Extensions → Apps Script**.
 2. Paste `apps-script/Code.gs` into `Code.gs`. Add an HTML file named **Index** and paste `apps-script/Index.html`. In ⚙ Project Settings tick *Show appsscript.json* and paste `apps-script/appsscript.json`. Save.
 3. Run **setup** (approve permissions: Advanced → Go to project).
-4. Reload the Google Sheet. In the new menu choose **Promoter Portfolio → Set app PIN / password**, enter your PIN (at least 4 characters) twice. It is stored only as a salted hash in the script's settings.
+4. Set your PIN: in Apps Script click **⚙ Project Settings** → scroll to **Script Properties** → **Add script property** → Property `APP_PIN`, Value = your PIN (at least 4 characters) → **Save script properties**. On your first sign-in it is converted to a salted hash and the plain PIN is deleted. To change the PIN later, add `APP_PIN` again; this signs out every device.
 5. **Deploy → New deployment → Web app**: Execute as **Me**, Who has access **Anyone** → Deploy → copy the **Web app URL** (`…/exec`).
    *"Anyone" is needed so the phone app can reach it without a Google login. Every request still needs a sign-in made with your PIN, and the Apps Script-hosted page refuses anyone except you.*
 
@@ -40,7 +40,7 @@ It opens full-screen with its own icon. The last loaded portfolio is kept on the
 - Each device signs in with the PIN and stays signed in for **30 days**. The PIN itself is never stored on the phone; only a sign-in token is.
 - 5 wrong PINs lock sign-in for **1 hour**.
 - **Settings → Sign out** signs this device out. **Disconnect this device** also forgets the web app link and the offline copy.
-- Lost a phone? In the Sheet use **Promoter Portfolio → Sign out all devices**, or set a new PIN (this also signs out every device).
+- Lost a phone? Set a new `APP_PIN` in Script Properties (signs out every device), or use the Sheet menu **Promoter Portfolio → Sign out all devices**.
 - A 4-digit PIN is easy to remember but also easier to guess. Keep the web app URL private too.
 
 **Want an actual .apk file?** Go to [pwabuilder.com](https://www.pwabuilder.com), enter your GitHub Pages link → **Package for stores → Android** → download, then install the `.apk` on your phone (allow "install unknown apps"). This is optional; the installed PWA behaves the same.
