@@ -348,7 +348,7 @@ async function apiCall(fn, args, cfg){
   return j.result;
 }
 const SECTORS = ['Logistics','Commercial Banks','Development Banks','Finance','Microfinance','Hydro Power','Life Insurance','Non Life Insurance','Hotels And Tourism','Manufacturing And Processing','Investment','Trading','Mutual Fund','Others','Cement','Health Care','Education','Information Technology','Agriculture','Real Estate','Infrastructure'];
-const S = { basis:'exp', lens:'', holdings:[], prices:{}, companies:[], meta:{}, view:'dashboard', f:{q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:''}, sort:{k:'currentValue',d:-1}, layout:'table', charts:{}, loading:true };
+const S = { basis:'exp', lens:'', holdings:[], prices:{}, companies:[], meta:{}, view:'dashboard', f:{q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:'',tag:''}, sort:{k:'currentValue',d:-1}, layout:'table', charts:{}, loading:true };
 
 /* ---------------- API ---------------- */
 function call(fn, ...args){
@@ -370,7 +370,7 @@ async function lockApp(){
 function cacheData(d){ if (!d || MODE()!=='api') return; try { localStorage.setItem(CACHE_KEY, JSON.stringify(d)); } catch(e){} }
 function cachedData(){ try { return JSON.parse(localStorage.getItem(CACHE_KEY)||'null'); } catch(e){ return null; } }
 const Demo = (() => {
-  const KEY = 'psp_demo_v5';
+  const KEY = 'psp_demo_v6';
   const today = () => new Date().toISOString().slice(0,10);
   const addM = (m) => { const d = new Date(); d.setMonth(d.getMonth()+m); return d.toISOString().slice(0,10); };
   // Fictional sample data for demo mode only. Your real holdings live in your Google Sheet.
@@ -381,7 +381,7 @@ const Demo = (() => {
     {company:'Mock Valley Cable Car',sector:'Hotels And Tourism',listing:'Not Applied',projectStatus:'Under Construction',progressPct:35,dematHolder:'Self',owner:'Self',shares:2000,costPerShare:100,investDate:'2025-01-20',lockinDate:'2031E',fairValue:250},
     {company:'Test Logistics Hub',sector:'Logistics',listing:'Not Applied',projectStatus:'Operational',dematHolder:'Family C',owner:'Self',shares:800,costPerShare:300,investDate:'2025-04-05',lockinDate:'2030E',fairValue:700},
     {company:'Placeholder Hotel Pvt',sector:'Hotels And Tourism',listing:'Not Applied',projectStatus:'Operational',dematHolder:'Self',owner:'Self',shares:1000,costPerShare:150,investDate:'2026-02-11',lockinDate:'2031E',fairValue:400},
-    {company:'Joint Example Hydro (demo)',sector:'Hydro Power',listing:'Not Applied',projectStatus:'Under Construction',progressPct:40,dematHolder:'Self',owner:'[Friends] Self 20, Friend A 20, Friend B 20, Friend C 20, Friend D 20',shares:10000,costPerShare:100,investDate:'2025-12-01',lockinDate:'2031E',fairValue:300}
+    {company:'Joint Example Hydro (demo)',sector:'Hydro Power',listing:'Not Applied',projectStatus:'Under Construction',progressPct:40,dematHolder:'Self',owner:'Self #self 20, Relative A #family 20, Friend B #friend 20, Friend C #friend 20, Friend D #friend 20',shares:10000,costPerShare:100,investDate:'2025-12-01',lockinDate:'2031E',fairValue:300}
   ];
   const basePx = {};
   function load(){ try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return s; } catch(e){}
@@ -463,17 +463,25 @@ const fmtRel = v => { const r=relInfo(v); return !r ? '—' : r.est ? r.y+' (exp
  *  by %      "Self 20, Ram 20%, Hari:20; Sita (20%), Gita"  (names without % share the remainder equally)
  *  by shares "Owner A 1050 sh, Owner B 625 sh, Owner C 1,050 sh"  (each owner's exact no. of shares; % = their share of the total) */
 /** Joint group tag stored in front of the owner list: "[Family] …" or "[Friends] …". */
-const JOINT_GROUPS = ['Family', 'Friends'];
+/** Per-owner relationship tag, written inline: "Owner A #self 1050 sh, Owner B #family 625 sh, Owner C #friend 625 sh".
+ *  Older holdings may carry one tag for everyone in front: "[Family] …" / "[Friends] …". */
+const OWNER_TAGS = ['Self', 'Family', 'Friend'];
 function ownerGroup(str){ const m = String(str||'').match(/^\s*\[([^\]]+)\]/); return m ? m[1].trim() : ''; }
+function normTag(t){ t = String(t||'').toLowerCase(); return /^fam/.test(t) ? 'Family' : /^fri/.test(t) ? 'Friend' : /^(self|own|me)/.test(t) ? 'Self' : ''; }
 function parseOwners(str){
+  const legacy = normTag(ownerGroup(str));
   str = String(str||'').replace(/^\s*\[[^\]]*\]\s*/, '');
   const parts = String(str||'').split(/;|\n|,(?=\s*[^\d\s])/).map(x=>x.trim()).filter(Boolean);   // commas inside numbers (1,050) are kept
+  const tags = [];
   const list = parts.map(p => {
+    const tm = p.match(/#(self|family|friends?)\b/i); tags.push(tm ? normTag(tm[1]) : legacy);
+    p = p.replace(/#\w+/g, ' ').replace(/\s+/g, ' ').trim();
     let m = p.match(/^(.*?)[\s:=(]*(\d[\d,]*(?:\.\d+)?)\s*(?:sh|shares?|kitta)\.?\)?\s*$/i);
     if (m && m[1].trim()) return { name: m[1].trim(), sh: N(m[2]), pct: null };
     m = p.match(/^(.*?)[\s:=(]*(\d+(?:\.\d+)?)\s*%?\)?\s*$/);
     return m && m[1].trim() ? { name: m[1].trim(), pct: +m[2] } : { name: p.replace(/[()%]/g,'').trim(), pct: null };
-  }).filter(o=>o.name);
+  }).map((o,i) => (o.tag = tags[i] || '', o)).filter(o=>o.name);
+  if (list.length === 1 && !list[0].tag) list[0].tag = 'Self';   // a holding with one untagged owner is your own
   if (list.some(o => o.sh != null)) {
     const tot = list.reduce((a,o)=>a+(o.sh||0),0);
     list.forEach(o => { o.sh = o.sh || 0; o.pct = tot ? o.sh/tot*100 : 0; });
@@ -494,10 +502,17 @@ function ownerAlloc(os, total, exactField){
 const ownerPct = (h, name) => { const o = parseOwners(h.owner).find(o=>o.name.toLowerCase()===String(name).toLowerCase()); return o ? o.pct : 0; };
 const allOwners = () => [...new Set(S.holdings.flatMap(h=>parseOwners(h.owner).map(o=>o.name)))].sort();
 const isJoint = h => parseOwners(h.owner).length > 1;
-/** "Family", "Friends", "Joint" (joint without a tag) or "Single". */
-const ownKind = h => isJoint(h) ? (ownerGroup(h.owner) || 'Joint') : 'Single';
-const kindChip = h => { const k = ownKind(h), n = parseOwners(h.owner).length;
-  return k==='Single' ? '' : `<span class="chip ${k==='Friends'?'partial':'hold'}" style="padding:0 6px;font-size:10.5px">${k==='Family'?'👪 Family':k==='Friends'?'🤝 Friends':'Joint'} ×${n}</span> `; };
+const TAG_ICON = { Self:'🙋', Family:'👪', Friend:'🤝' };
+const tagChip = t => t ? `<span class="chip ${t==='Friend'?'partial':t==='Family'?'hold':'released'}" style="padding:0 6px;font-size:10.5px">${TAG_ICON[t]} ${t}</span>` : '';
+/** Joint holding kind from its owners' tags: Family / Friends / Mixed (family + friends) / Joint (untagged); else Single. */
+const ownKind = h => { const os = parseOwners(h.owner); if (os.length < 2) return 'Single';
+  const fam = os.some(o=>o.tag==='Family'), fri = os.some(o=>o.tag==='Friend');
+  return fam && fri ? 'Mixed' : fam ? 'Family' : fri ? 'Friends' : 'Joint'; };
+const kindChip = h => { const os = parseOwners(h.owner); if (os.length < 2) return tagChip(os[0] && os[0].tag !== 'Self' ? os[0].tag : '') + (os[0] && os[0].tag && os[0].tag!=='Self' ? ' ' : '');
+  const c = t => os.filter(o=>o.tag===t).length, parts = ['Self','Family','Friend'].filter(t=>c(t)).map(t=>`${TAG_ICON[t]}${c(t)}`), un = os.filter(o=>!o.tag).length;
+  return `<span class="chip ${ownKind(h)==='Friends'?'partial':'hold'}" style="padding:0 6px;font-size:10.5px">Joint ×${os.length}${parts.length?' · '+parts.join(' '):''}${un&&parts.length?' ·'+un+'?':''}</span> `; };
+/** Value of shares held, split by owner tag (Self / Family / Friend / untagged). */
+function valueByTag(list){ const m = {Self:0, Family:0, Friend:0, '':0}; list.forEach(r => parseOwners(r.h.owner).forEach(o => { m[o.tag||''] += r.curVal * o.pct/100; })); return m; }
 /** Largest-remainder split of a whole number of shares by percentages. */
 function allocate(total, pcts){ total = Math.round(N(total)); const raw = pcts.map(p=>total*p/100), fl = raw.map(Math.floor); let left = total - fl.reduce((a,b)=>a+b,0);
   raw.map((v,i)=>[v-fl[i],i]).sort((a,b)=>b[0]-a[0]).forEach(([,i])=>{ if(left>0){ fl[i]++; left--; } }); return fl; }
@@ -684,7 +699,7 @@ function renderDash(){
       <div class="sec-t" style="margin-top:20px">Status mix</div>
       ${statusRow('Exit status · by count', [['Hold',R.filter(r=>r.exitStatus==='Hold').length,'var(--s1)'],['Partial Exit',R.filter(r=>r.exitStatus==='Partial Exit').length,'var(--s4)'],['Exit',R.filter(r=>r.exitStatus==='Exit').length,'var(--muted)']], v=>v)}
       ${statusRow('Listing / IPO · by current value', [['Listed',listedVal,'var(--s3)'],['IPO Pipeline',act.filter(r=>r.h.listing==='Pipeline').reduce((s,r)=>s+r.curVal,0),'var(--s4)'],['Not Applied',act.filter(r=>r.h.listing==='Not Applied').reduce((s,r)=>s+r.curVal,0),'var(--s7)']], fmtC)}
-      ${statusRow('Ownership · by current value', [['Single',act.filter(r=>ownKind(r.h)==='Single').reduce((s,r)=>s+r.curVal,0),'var(--s1)'],['Joint · Family',act.filter(r=>ownKind(r.h)==='Family').reduce((s,r)=>s+r.curVal,0),'var(--s5)'],['Joint · Friends',act.filter(r=>ownKind(r.h)==='Friends').reduce((s,r)=>s+r.curVal,0),'var(--s4)']].concat(act.some(r=>ownKind(r.h)==='Joint')?[['Joint (untagged)',act.filter(r=>ownKind(r.h)==='Joint').reduce((s,r)=>s+r.curVal,0),'var(--muted)']]:[]), fmtC)}
+      ${(()=>{ const v = valueByTag(act); return statusRow('Beneficial ownership · by current value', [['🙋 Self',v.Self,'var(--s1)'],['👪 Family',v.Family,'var(--s5)'],['🤝 Friends',v.Friend,'var(--s4)']].concat(v['']>0.5?[['Untagged',v[''],'var(--muted)']]:[]), fmtC); })()}
       ${statusRow('Project status · by current value', [['Operational',act.filter(r=>r.h.projectStatus!=='Under Construction').reduce((s,r)=>s+r.curVal,0),'var(--s6)'],['Under Construction',act.filter(r=>r.h.projectStatus==='Under Construction').reduce((s,r)=>s+r.curVal,0),'var(--s2)']], fmtC)}
     </div>
   </div>
@@ -752,7 +767,7 @@ function drawDashCharts(R, act){
 /* ---------------- HOLDINGS ---------------- */
 const COLDEF = [
   ['company','Company',r=>`<div class="co"><b>${esc(r.h.company)}</b><span>${esc(r.h.symbol? r.h.symbol+' · ':'')}${esc(r.h.sector||'—')}</span></div>`, r=>r.h.company.toLowerCase()],
-  ['holder','Demat / Owner',r=>`${esc(r.h.dematHolder||'—')}${r.h.owner?`<span class="sub2">${isJoint(r.h)?kindChip(r.h):'Owner: '}<span class="owners-cut" title="${esc(fmtOwners(parseOwners(r.h.owner)))}">${esc(S.lens&&isJoint(r.h)?S.lens+' '+(+(r.f*100).toFixed(2))+'%':fmtOwners(parseOwners(r.h.owner)))}</span></span>`:''}`, r=>(r.h.dematHolder||'').toLowerCase()],
+  ['holder','Demat / Owner',r=>`${esc(r.h.dematHolder||'—')}${r.h.owner?`<span class="sub2">${isJoint(r.h)?kindChip(r.h):kindChip(r.h)||'Owner: '}<span class="owners-cut" title="${esc(fmtOwners(parseOwners(r.h.owner)))}">${esc(S.lens&&isJoint(r.h)?S.lens+' '+(+(r.f*100).toFixed(2))+'%':fmtOwners(parseOwners(r.h.owner)))}</span></span>`:''}`, r=>(r.h.dematHolder||'').toLowerCase()],
   ['shares','No. of shares',r=>`${fmtQ(r.rem)}<span class="sub2">${r.bonus?fmtQ(r.orig)+' + '+fmtQ(r.bonus)+' bonus':''}${r.exQ?(r.bonus?' · ':'')+fmtQ(r.exQ)+' sold':''}</span>`, r=>r.rem, 'r'],
   ['cost','Rate',r=>`${nf2.format(r.rate)}${r.bonus?`<span class="sub2">${nf2.format(r.cost)} adj.</span>`:''}`, r=>r.cost, 'r'],
   ['ltp','LTP / price',r=>`${nf2.format(r.price)}<span class="sub2">${r.src==='LTP' && r.dayPct!=null ? `<span class="${sgn(r.dayPct)}">${fmtPct(r.dayPct)}</span> · LTP` : r.src}</span>`, r=>r.price, 'r'],
@@ -774,6 +789,7 @@ function filtered(){
     if (f.project && h.projectStatus!==f.project) return false;
     if (f.exit && r.exitStatus!==f.exit) return false;
     if (f.holder && h.dematHolder!==f.holder) return false;
+    if (f.tag && !parseOwners(h.owner).some(o => o.tag === f.tag)) return false;
     if (f.joint) { const k = ownKind(h); if (f.joint==='Joint (all)' ? k==='Single' : f.joint==='Single' ? k!=='Single' : k!==f.joint) return false; }
     if (f.lock==='Locked' && !r.locked) return false;
     if (f.lock==='Liquid' && (r.locked || r.rem<=0)) return false;
@@ -795,7 +811,8 @@ function renderHoldings(){
     ${fsel('listing','Listing / IPO',['Listed','Pipeline','Not Applied'])}
     ${fsel('project','Project status',['Under Construction','Operational'])}
     ${fsel('holder','All demat holders',uniq('dematHolder'))}
-    ${fsel('joint','Single / Joint',['Single','Joint (all)','Family','Friends'])}
+    ${fsel('joint','Single / Joint',['Single','Joint (all)','Family','Friends','Mixed'])}
+    ${fsel('tag','Includes…',['Self','Family','Friend'])}
     ${any?'<button class="btn ghost sm" id="clrF">Clear filters</button>':''}
     <div style="flex:1"></div>
     <div class="seg"><button data-lay="table" class="${S.layout==='table'?'on':''}" title="Table">${IC.list.replace('<svg','<svg width="15" height="15"')}</button><button data-lay="cards" class="${S.layout==='cards'?'on':''}" title="Cards">${IC.grid.replace('<svg','<svg width="15" height="15"')}</button></div>
@@ -822,7 +839,7 @@ function renderHoldings(){
   $$('[data-lay]').forEach(b => b.onclick = () => { S.layout=b.dataset.lay; try{localStorage.setItem('psp_layout',S.layout)}catch(e){} renderHoldings(); });
   $('#expCsv').onclick = () => exportCsv(R);
   $$('[data-basis]').forEach(b => b.onclick = () => setBasis(b.dataset.basis));
-  const c = $('#clrF'); if (c) c.onclick = () => { S.f = {q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:''}; renderHoldings(); };
+  const c = $('#clrF'); if (c) c.onclick = () => { S.f = {q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:'',tag:''}; renderHoldings(); };
 }
 const miniStat = (l,v) => `<div class="card" style="padding:12px 14px"><div class="hint">${l}</div><div class="num" style="font-weight:700;font-size:15px;margin-top:4px">${v}</div></div>`;
 function debounce(fn, ms){ let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
@@ -869,11 +886,11 @@ function ownSplitHtml(h, r){
   const os = parseOwners(h.owner); if (os.length < 2) return '';
   const sh = ownerAlloc(os, r.orig, true), bo = ownerAlloc(os, r.bonus), sq = ownerAlloc(os, r.exQ);
   const tot = os.reduce((a,o)=>a+o.pct,0), shMismatch = os.bySh && Math.round(os.totSh) !== Math.round(r.orig);
-  const grp = ownerGroup(h.owner);
-  return `<div class="sec-t">Ownership split · joint with ${grp ? grp.toLowerCase() : 'others'}${os.bySh?' (by no. of shares)':''}</div>
+  const kind = ownKind(h);
+  return `<div class="sec-t">Ownership split · joint${kind==='Mixed'?' · family + friends':kind==='Family'?' · family':kind==='Friends'?' · friends':''}${os.bySh?' (by no. of shares)':''}</div>
   ${shMismatch?`<div class="banner" style="background:var(--bad-soft)">Owners' shares add up to ${fmtQ(os.totSh)}, but this holding has ${fmtQ(r.orig)} shares. Edit the holding to fix.</div>`:''}
   <div class="tbl-wrap" style="max-height:none"><table><thead><tr><th style="cursor:default">Owner</th><th class="r" style="cursor:default">%</th><th class="r" style="cursor:default">Shares</th><th class="r" style="cursor:default">Investment</th><th class="r" style="cursor:default">Current value</th><th class="r" style="cursor:default">Total return</th></tr></thead><tbody>
-  ${os.map((o,i)=>{ const f=o.pct/100; return `<tr style="cursor:default${S.lens&&S.lens.toLowerCase()===o.name.toLowerCase()?';background:var(--brand-soft)':''}"><td><b>${esc(o.name)}</b></td><td class="r num">${+o.pct.toFixed(2)}%</td><td class="r num">${fmtQ(sh[i]+bo[i]-sq[i])}${bo[i]?`<span class="sub2">${fmtQ(sh[i])} + ${fmtQ(bo[i])} bonus</span>`:''}</td><td class="r num">${fmtRs(r.totalCost*f,0)}</td><td class="r num">${fmtRs(r.curVal*f,0)}</td><td class="r num ${sgn(r.totPL)}">${fmtRs(r.totPL*f,0)}</td></tr>`; }).join('')}
+  ${os.map((o,i)=>{ const f=o.pct/100; return `<tr style="cursor:default${S.lens&&S.lens.toLowerCase()===o.name.toLowerCase()?';background:var(--brand-soft)':''}"><td><b>${esc(o.name)}</b> ${tagChip(o.tag)}</td><td class="r num">${+o.pct.toFixed(2)}%</td><td class="r num">${fmtQ(sh[i]+bo[i]-sq[i])}${bo[i]?`<span class="sub2">${fmtQ(sh[i])} + ${fmtQ(bo[i])} bonus</span>`:''}</td><td class="r num">${fmtRs(r.totalCost*f,0)}</td><td class="r num">${fmtRs(r.curVal*f,0)}</td><td class="r num ${sgn(r.totPL)}">${fmtRs(r.totPL*f,0)}</td></tr>`; }).join('')}
   </tbody><tfoot><tr><td>Total</td><td class="r num ${Math.abs(tot-100)>0.01?'neg':''}">${+tot.toFixed(2)}%</td><td class="r num">${fmtQ(r.rem)}</td><td class="r num">${fmtRs(r.totalCost,0)}</td><td class="r num">${fmtRs(r.curVal,0)}</td><td class="r num">${fmtRs(r.totPL,0)}</td></tr></tfoot></table></div>
   <div class="hint" style="margin-top:6px">Held jointly in ${esc(h.dematHolder||'one demat')}. Use <b>Segregate</b> when the shares are split into each owner's own demat.</div>`;
 }
@@ -886,12 +903,11 @@ function openSegregate(id){
   smallModal(`Segregate · ${esc(h.company)}`, `
     <p class="hint" style="margin-top:0">Splits this joint holding into ${os.length} separate holdings, one per owner, with the same rate, dates, lock-in and status. ${os.bySh ? 'Each owner gets exactly the shares entered for them; bonus and sold shares are split in proportion.' : 'Shares are split by ownership % (whole shares; rounding goes to the largest fractions).'} The joint record is replaced.</p>
     <div class="tbl-wrap" style="max-height:none"><table><thead><tr><th style="cursor:default">Owner</th><th class="r" style="cursor:default">Shares</th><th class="r" style="cursor:default">Bonus</th><th class="r" style="cursor:default">Sold</th><th style="cursor:default">New demat holder</th></tr></thead><tbody>
-    ${os.map((o,i)=>`<tr style="cursor:default"><td><b>${esc(o.name)}</b><span class="sub2">${+o.pct.toFixed(2)}%</span></td><td class="r num">${fmtQ(sh[i])}</td><td class="r num">${fmtQ(bo[i])}</td><td class="r num">${fmtQ(sq[i])}</td><td><input class="segDm" data-i="${i}" value="${esc(o.name)}" style="width:130px;border:1px solid var(--border-2);border-radius:8px;padding:6px 8px;background:var(--surface-2)"></td></tr>`).join('')}
+    ${os.map((o,i)=>`<tr style="cursor:default"><td><b>${esc(o.name)}</b> ${tagChip(o.tag)}<span class="sub2">${+o.pct.toFixed(2)}%</span></td><td class="r num">${fmtQ(sh[i])}</td><td class="r num">${fmtQ(bo[i])}</td><td class="r num">${fmtQ(sq[i])}</td><td><input class="segDm" data-i="${i}" value="${esc(o.name)}" style="width:130px;border:1px solid var(--border-2);border-radius:8px;padding:6px 8px;background:var(--surface-2)"></td></tr>`).join('')}
     </tbody></table></div>`, 'Segregate', async () => {
       const dm = $$('.segDm').map(x=>x.value.trim());
       const stamp = todayISO();
-      const tag = ownerGroup(h.owner) ? '['+ownerGroup(h.owner)+'] ' : '';
-      const parts = os.map((o,i) => Object.assign({}, h, { id:'', owner:tag+o.name, dematHolder: dm[i] || o.name, boid:'', shares: sh[i], bonusShares: bo[i] || '', exitedQty: sq[i] || '',
+      const parts = os.map((o,i) => Object.assign({}, h, { id:'', owner: o.name + (o.tag && o.tag!=='Self' ? ' #'+o.tag.toLowerCase() : ''), dematHolder: dm[i] || o.name, boid:'', shares: sh[i], bonusShares: bo[i] || '', exitedQty: sq[i] || '',
         exitStatus: !sq[i] ? 'Hold' : (sq[i] >= sh[i]+bo[i] ? 'Exit' : 'Partial Exit'),
         notes: ((h.notes ? h.notes+'\n' : '') + `Segregated ${stamp} from joint holding ${h.id} (${fmtOwners(os)}; demat ${h.dematHolder||'—'})`) })).filter(p => N(p.shares) > 0);
       const res = await call('api_segregateHolding', id, parts);
@@ -929,9 +945,9 @@ function openForm(id){
       <div class="f"><label>Demat account holder</label><input name="dematHolder" list="dlHold" value="${v('dematHolder')}" placeholder="whose demat holds the shares"></div>
       <div class="f c3" id="ownBox"><label>Ownership (beneficial owner)</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="seg" id="ownSeg"><button type="button" data-own="single">Single owner</button><button type="button" data-own="joint">Joint</button></div>
-          <input id="ownSingle" list="dlOwn" placeholder="e.g. Self" style="flex:1;min-width:160px"></div>
+          <input id="ownSingle" list="dlOwn" placeholder="e.g. Self" style="flex:1;min-width:160px"><select id="ownSingleTag" class="sel" title="Who is this owner to you?" style="padding:8px 28px 8px 10px"><option value="">🙋 Self</option><option value="Family">👪 Family</option><option value="Friend">🤝 Friend</option></select></div>
         <div id="ownJoint" style="display:none;margin-top:10px">
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><span class="help">Joint with</span><div class="seg" id="ownGroup"><button type="button" data-grp="Family">👪 Family</button><button type="button" data-grp="Friends">🤝 Friends</button></div><span style="width:10px"></span><span class="help">Split by</span><div class="seg" id="ownUnit"><button type="button" data-unit="sh">No. of shares</button><button type="button" data-unit="amt">Amount (Rs)</button><button type="button" data-unit="pct">%</button></div></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><span class="help">Tag everyone as</span><div class="seg" id="ownGroup"><button type="button" data-grp="Self">🙋 Self</button><button type="button" data-grp="Family">👪 Family</button><button type="button" data-grp="Friend">🤝 Friend</button></div><span style="width:10px"></span><span class="help">Split by</span><div class="seg" id="ownUnit"><button type="button" data-unit="sh">No. of shares</button><button type="button" data-unit="amt">Amount (Rs)</button><button type="button" data-unit="pct">%</button></div></div>
           <div id="ownRows" style="display:flex;flex-direction:column;gap:6px"></div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="ownAdd">+ Add owner</button><button type="button" class="btn sm" id="ownEq">Split equally</button><button type="button" class="btn sm" id="ownPasteBtn">Paste from Excel</button><span class="help" id="ownTot" style="margin-left:auto"></span></div>
           <div id="ownPasteBox" style="display:none;margin-top:8px"><textarea id="ownPaste" rows="5" placeholder="Copy the Name and No. of Shares columns from Excel and paste here, e.g.&#10;Owner A	1,050&#10;Owner B	625&#10;Owner C	625" style="width:100%;border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2);font:12.5px ui-monospace,monospace"></textarea>
@@ -981,41 +997,35 @@ function openForm(id){
   const ownInit = parseOwners(h.owner);
   let ownMode = ownInit.length > 1 ? 'joint' : 'single', ownUnit = ownInit.length > 1 && !ownInit.bySh ? 'pct' : 'sh';
   const inSt = 'border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2);min-width:0';
-  const ownRowHtml = (n, val) => `<div class="ownRow" style="display:grid;grid-template-columns:minmax(0,1fr) 110px 190px 32px;gap:6px;align-items:center"><input class="oN" list="dlOwn" placeholder="Owner name" value="${esc(n||'')}" style="${inSt}"><input class="oP" type="number" min="0" step="${ownUnit==='pct'?0.01:1}" placeholder="${ownUnit==='sh'?'shares':ownUnit==='amt'?'Rs':'%'}" value="${val==null||val===''?'':+(+val).toFixed(4)}" style="${inSt}"><span class="help oS num" style="text-align:right;white-space:nowrap"></span><button type="button" class="icon-btn oX" style="width:32px;height:32px">${IC.x}</button></div>`;
-  const ownRead = () => $$('.ownRow').map(rw => ({name: $('.oN',rw).value.trim(), v: $('.oP',rw).value===''?null:N($('.oP',rw).value)})).filter(o=>o.name);
-  let ownGroupSel = ownerGroup(h.owner) || 'Family';
+  const tagSel = t => `<select class="oT" title="Relationship" style="${inSt};padding:8px 6px">${OWNER_TAGS.map(x=>`<option value="${x}" ${x===(t||'Family')?'selected':''}>${TAG_ICON[x]} ${x}</option>`).join('')}</select>`;
+  const ownRowHtml = (n, val, t) => `<div class="ownRow" style="display:grid;grid-template-columns:minmax(0,1fr) 118px 110px 170px 32px;gap:6px;align-items:center"><input class="oN" list="dlOwn" placeholder="Owner name" value="${esc(n||'')}" style="${inSt}">${tagSel(t)}<input class="oP" type="number" min="0" step="${ownUnit==='pct'?0.01:1}" placeholder="${ownUnit==='sh'?'shares':ownUnit==='amt'?'Rs':'%'}" value="${val==null||val===''?'':+(+val).toFixed(4)}" style="${inSt}"><span class="help oS num" style="text-align:right;white-space:nowrap"></span><button type="button" class="icon-btn oX" style="width:32px;height:32px">${IC.x}</button></div>`;
+  const ownRead = () => $$('.ownRow').map(rw => ({name: $('.oN',rw).value.trim(), t: $('.oT',rw).value, v: $('.oP',rw).value===''?null:N($('.oP',rw).value)})).filter(o=>o.name);
+  const nameT = o => `${o.name} #${(o.t||'Family').toLowerCase()}`;
   const ownSync = () => {
-    ownSync0();
-    const v = el('owner').value.replace(/^\s*\[[^\]]*\]\s*/, '');
-    // joint: tag with Family/Friends; single: keep a tag it already had (e.g. after Segregate)
-    const tag = ownMode==='joint' ? ownGroupSel : ownerGroup(h.owner);
-    el('owner').value = v && tag ? `[${tag}] ${v}` : v;
-  };
-  const ownSync0 = () => {
-    if (ownMode==='single') { el('owner').value = $('#ownSingle').value.trim(); return; }
+    if (ownMode==='single') { const n = $('#ownSingle').value.trim(), t = $('#ownSingleTag').value; el('owner').value = n && t ? `${n} #${t.toLowerCase()}` : n; return; }
     const l = ownRead(), sh = N(el('shares').value), rate = N(el('costPerShare').value);
     if (ownUnit === 'amt') {
       if (!rate) { $('#ownTot').innerHTML = '<b class="neg">Enter the rate per share first</b>'; el('owner').value = ''; return; }
       const shs = l.map(o => (o.v||0)/rate), tot = shs.reduce((a,b)=>a+Math.round(b),0), ok = sh>0 && tot===Math.round(sh);
       const odd = l.filter((o,i) => Math.abs(shs[i]-Math.round(shs[i])) > 1e-6).map(o=>o.name);
-      el('owner').value = l.map((o,i) => `${o.name} ${Math.round(shs[i])} sh`).join(', ');
+      el('owner').value = l.map((o,i) => `${nameT(o)} ${Math.round(shs[i])} sh`).join(', ');
       $('#ownTot').innerHTML = `Total <b class="${ok?'pos':'neg'}">${fmtRs(l.reduce((a,o)=>a+(o.v||0),0),0)}</b> = ${fmtQ(tot)} of ${fmtQ(sh)} shares${ok?' ✓':sh?(tot<sh?` · ${fmtQ(sh-tot)} unassigned`:` · ${fmtQ(tot-sh)} too many`):''}${odd.length?`<br><span class="neg">Not a whole number of shares at Rs ${nf2.format(rate)}: ${esc(odd.join(', '))}</span>`:''}`;
       $$('.ownRow').forEach(rw => { const v = N($('.oP',rw).value)/rate; $('.oS',rw).textContent = v ? `${fmtQ(v)} sh · ${tot?(Math.round(v)/tot*100).toFixed(2):'0'}%` : ''; });
     } else if (ownUnit === 'sh') {
-      el('owner').value = l.map(o => `${o.name} ${Math.round(o.v||0)} sh`).join(', ');
+      el('owner').value = l.map(o => `${nameT(o)} ${Math.round(o.v||0)} sh`).join(', ');
       const tot = l.reduce((a,o)=>a+Math.round(o.v||0),0), ok = sh>0 && tot===Math.round(sh);
       $('#ownTot').innerHTML = `Total <b class="${ok?'pos':'neg'}">${fmtQ(tot)}</b> of ${fmtQ(sh)} shares${ok?' ✓':sh? (tot<sh?` · ${fmtQ(sh-tot)} unassigned`:` · ${fmtQ(tot-sh)} too many`) : ''}`;
       $$('.ownRow').forEach(rw => { const v = Math.round(N($('.oP',rw).value)); $('.oS',rw).textContent = v ? `${tot? (v/tot*100).toFixed(2):'0'}% · ${fmtRs(v*rate,0)}` : ''; });
     } else {
-      el('owner').value = l.map(o => o.v==null ? o.name : `${o.name} ${o.v}%`).join(', ');
+      el('owner').value = l.map(o => o.v==null ? nameT(o) : `${nameT(o)} ${o.v}%`).join(', ');
       const pl = parseOwners(el('owner').value), tot = pl.reduce((a,o)=>a+o.pct,0);
       $('#ownTot').innerHTML = `Total <b class="${Math.abs(tot-100)>0.01?'neg':'pos'}">${+tot.toFixed(2)}%</b>${Math.abs(tot-100)>0.01?' (must be 100%)':''}`;
       const alloc = allocate(sh, $$('.ownRow').map(rw => { const nm=$('.oN',rw).value.trim(); const o = pl.find(x=>x.name===nm); return o?o.pct:0; }));
       $$('.ownRow').forEach((rw,i) => $('.oS',rw).textContent = sh ? fmtQ(alloc[i])+' sh · '+fmtRs(alloc[i]*rate,0) : '');
     }
   };
-  const ownBind = () => { $$('.ownRow input').forEach(x=>x.oninput=ownSync); $$('.oX').forEach(b=>b.onclick=()=>{ b.closest('.ownRow').remove(); ownSync(); }); };
-  const fillRows = list => { $('#ownRows').innerHTML = list.map(o=>ownRowHtml(o.name, o.v)).join(''); ownBind(); ownSync(); };
+  const ownBind = () => { $$('.ownRow input').forEach(x=>x.oninput=ownSync); $$('.ownRow .oT').forEach(x=>x.onchange=ownSync); $$('.oX').forEach(b=>b.onclick=()=>{ b.closest('.ownRow').remove(); ownSync(); }); };
+  const fillRows = list => { $('#ownRows').innerHTML = list.map(o=>ownRowHtml(o.name, o.v, o.t)).join(''); ownBind(); ownSync(); };
   const setUnit = u => {
     if (u === ownUnit && $$('.ownRow').length) { $$('#ownUnit button').forEach(b=>b.classList.toggle('on', b.dataset.unit===u)); return; }
     const l = ownRead(), sh = N(el('shares').value);
@@ -1025,21 +1035,23 @@ function openForm(id){
     if (ownUnit==='amt') shs = l.map(o => o.v==null||!rate ? null : Math.round(o.v/rate));
     if (ownUnit==='pct') { const al = allocate(sh, parseOwners(l.map(o=>o.v==null?o.name:`${o.name} ${o.v}%`).join(', ')).map(o=>o.pct)); shs = l.map((o,i)=> sh ? al[i] : null); }
     const t = shs.reduce((a,v)=>a+(v||0),0);
-    let conv = l.map((o,i) => ({ name:o.name, v: shs[i]==null ? null : u==='sh' ? shs[i] : u==='amt' ? (rate ? shs[i]*rate : null) : (t ? +(shs[i]/t*100).toFixed(4) : null) }));
+    let conv = l.map((o,i) => ({ name:o.name, t:o.t, v: shs[i]==null ? null : u==='sh' ? shs[i] : u==='amt' ? (rate ? shs[i]*rate : null) : (t ? +(shs[i]/t*100).toFixed(4) : null) }));
     ownUnit = u; $$('#ownUnit button').forEach(b=>b.classList.toggle('on', b.dataset.unit===u));
-    fillRows(conv.length ? conv : [{name:$('#ownSingle').value.trim(), v:null},{name:'',v:null}]);
+    fillRows(conv.length ? conv : [{name:$('#ownSingle').value.trim(), t:$('#ownSingleTag').value||'Self', v:null},{name:'',t:'Family',v:null}]);
   };
-  const setOwn = m => { ownMode = m; $$('#ownSeg button').forEach(b=>b.classList.toggle('on', b.dataset.own===m)); $('#ownJoint').style.display = m==='joint'?'':'none'; $('#ownSingle').style.display = m==='single'?'':'none';
-    if (m==='joint' && !$$('.ownRow').length) { const cur = $('#ownSingle').value.trim(); fillRows([{name:cur, v:null},{name:'', v:null}]); }
-    if (m==='single' && !$('#ownSingle').value) { const l = ownRead(); $('#ownSingle').value = l[0] ? l[0].name : ''; }
+  const setOwn = m => { ownMode = m; $$('#ownSeg button').forEach(b=>b.classList.toggle('on', b.dataset.own===m)); $('#ownJoint').style.display = m==='joint'?'':'none'; $('#ownSingle').style.display = m==='single'?'':'none'; $('#ownSingleTag').style.display = m==='single'?'':'none';
+    if (m==='joint' && !$$('.ownRow').length) { const cur = $('#ownSingle').value.trim(); fillRows([{name:cur, t:$('#ownSingleTag').value||'Self', v:null},{name:'', t:'Family', v:null}]); }
+    if (m==='single' && !$('#ownSingle').value) { const l = ownRead(); $('#ownSingle').value = l[0] ? l[0].name : ''; $('#ownSingleTag').value = l[0] && l[0].t!=='Self' ? l[0].t : ''; }
     ownSync(); };
-  if (ownInit.length > 1) fillRows(ownInit.map(o => ({name:o.name, v: ownInit.bySh ? o.sh : o.pct})));
-  else $('#ownSingle').value = ownInit[0] ? ownInit[0].name : '';
+  if (ownInit.length > 1) fillRows(ownInit.map(o => ({name:o.name, t:o.tag||'Family', v: ownInit.bySh ? o.sh : o.pct})));
+  else { $('#ownSingle').value = ownInit[0] ? ownInit[0].name : ''; $('#ownSingleTag').value = ownInit[0] && ownInit[0].tag && ownInit[0].tag!=='Self' ? ownInit[0].tag : ''; }
+  $('#ownSingleTag').onchange = ownSync;
   $$('#ownUnit button').forEach(b => { b.classList.toggle('on', b.dataset.unit===ownUnit); b.onclick = () => setUnit(b.dataset.unit); });
   $$('#ownSeg button').forEach(b => b.onclick = () => setOwn(b.dataset.own));
-  $$('#ownGroup button').forEach(b => { b.classList.toggle('on', b.dataset.grp===ownGroupSel); b.onclick = () => { ownGroupSel = b.dataset.grp; $$('#ownGroup button').forEach(x=>x.classList.toggle('on', x===b)); ownSync(); }; });
+  // "Tag everyone as" sets every owner row at once; each row can still be changed on its own
+  $$('#ownGroup button').forEach(b => b.onclick = () => { $$('.ownRow .oT').forEach(x => x.value = b.dataset.grp); ownSync(); toast('All owners tagged ' + b.dataset.grp,'ok'); });
   $('#ownSingle').oninput = ownSync;
-  $('#ownAdd').onclick = () => { $('#ownRows').insertAdjacentHTML('beforeend', ownRowHtml('', null)); ownBind(); ownSync(); };
+  $('#ownAdd').onclick = () => { const last = $$('.ownRow .oT').pop(); $('#ownRows').insertAdjacentHTML('beforeend', ownRowHtml('', null, last ? last.value : 'Family')); ownBind(); ownSync(); };
   $('#ownEq').onclick = () => { const rs = $$('.ownRow'), sh = N(el('shares').value);
     if (ownUnit!=='pct') { if (!sh) { toast('Enter No. of shares first','err'); return; } const al = allocate(sh, rs.map(()=>100/rs.length)), rate = N(el('costPerShare').value); rs.forEach((rw,i) => $('.oP',rw).value = ownUnit==='amt' ? al[i]*rate : al[i]); }
     else rs.forEach(rw => $('.oP',rw).value = +(100/rs.length).toFixed(4));
@@ -1204,7 +1216,7 @@ function renderSettings(){
     <b>Unrealized P/L</b> = shares held × (price used − cost). · <b>Total return %</b> = (realized + unrealized) ÷ total cost. ·
     <b>XIRR</b>: annualised return on dated cash flows (investment, exits, current value today). ·
     <b>Locked</b> = shares still held whose lock-in release is in the future (an expected year like 2030E counts as locked until 31 Dec of that year); <b>Liquid</b> = shares still held whose lock-in has been released (or no date set). ·
-    <b>Joint investments</b>: tag them as <i>Family</i> or <i>Friends</i>, then enter each owner's <i>no. of shares</i>, <i>amount invested</i> (converted to shares at the rate) or <i>%</i>; you can paste the columns from Excel; <i>View as</i> scales every figure to one owner's share; <i>Segregate</i> splits a joint holding into one record per owner. ·
+    <b>Joint investments</b>: tag each owner as <i>Self</i>, <i>Family</i> or <i>Friend</i> (mixed groups are fine), then enter each owner's <i>no. of shares</i>, <i>amount invested</i> (converted to shares at the rate) or <i>%</i>; you can paste the columns from Excel; <i>View as</i> scales every figure to one owner's share; <i>Segregate</i> splits a joint holding into one record per owner. ·
     <b>Hold / Partial Exit / Exit</b> is suggested from sold qty (0 → Hold, some → Partial Exit, all → Exit) and can be changed on the form.</div></div>`;
   $('#bridgeLink').href = bridgeHref();
   $('#bridgeCopy').onclick = () => { const code = bridgeHref(); navigator.clipboard.writeText(code).then(() => toast('Bookmark code copied. Create a new bookmark and paste it as the URL','ok'), () => { $('#pxPaste').value = code; toast('Copy the code from the paste box (it is the bookmark URL)','err'); }); };

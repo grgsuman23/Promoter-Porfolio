@@ -1,5 +1,5 @@
 /* Promoter Share Portfolio — service worker (offline app shell). Bump VERSION after changing index.html. */
-const VERSION = 'psp-v8';
+const VERSION = 'psp-v9';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
