@@ -455,7 +455,7 @@ const fmtRel = v => { const r=relInfo(v); return !r ? '—' : r.est ? r.y+' (exp
 /** Ownership split. "Self 20, Ram 20%, Hari:20; Sita (20%), Gita" → names without % share the remainder equally. */
 /** Ownership split, stored as text in the Sheet. Two forms:
  *  by %      "Self 20, Ram 20%, Hari:20; Sita (20%), Gita"  (names without % share the remainder equally)
- *  by shares "Suman 1050 sh, Sanam 625 sh, Amrit 1,050 sh"  (each owner's exact no. of shares; % = their share of the total) */
+ *  by shares "Owner A 1050 sh, Owner B 625 sh, Owner C 1,050 sh"  (each owner's exact no. of shares; % = their share of the total) */
 function parseOwners(str){
   const parts = String(str||'').split(/;|\n|,(?=\s*[^\d\s])/).map(x=>x.trim()).filter(Boolean);   // commas inside numbers (1,050) are kept
   const list = parts.map(p => {
@@ -899,7 +899,7 @@ function openForm(id){
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><span class="help">Split by</span><div class="seg" id="ownUnit"><button type="button" data-unit="sh">No. of shares</button><button type="button" data-unit="pct">%</button></div></div>
           <div id="ownRows" style="display:flex;flex-direction:column;gap:6px"></div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="ownAdd">+ Add owner</button><button type="button" class="btn sm" id="ownEq">Split equally</button><button type="button" class="btn sm" id="ownPasteBtn">Paste from Excel</button><span class="help" id="ownTot" style="margin-left:auto"></span></div>
-          <div id="ownPasteBox" style="display:none;margin-top:8px"><textarea id="ownPaste" rows="5" placeholder="Copy the Name and No. of Shares columns from Excel and paste here, e.g.&#10;Suman	1,050&#10;Sanam	625&#10;Amrita	625" style="width:100%;border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2);font:12.5px ui-monospace,monospace"></textarea>
+          <div id="ownPasteBox" style="display:none;margin-top:8px"><textarea id="ownPaste" rows="5" placeholder="Copy the Name and No. of Shares columns from Excel and paste here, e.g.&#10;Owner A	1,050&#10;Owner B	625&#10;Owner C	625" style="width:100%;border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2);font:12.5px ui-monospace,monospace"></textarea>
             <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><span class="help">If a row has several numbers, use</span><select id="ownPasteCol" class="sel" style="padding:5px 26px 5px 8px"><option value="0">1st number</option><option value="1">2nd number</option><option value="2">3rd number</option><option value="3">4th number</option></select><button type="button" class="btn pri sm" id="ownPasteGo">Use these owners</button><span class="help" id="ownPasteMsg"></span></div></div>
         </div>
         <input type="hidden" name="owner" value="${v('owner')}"></div>
