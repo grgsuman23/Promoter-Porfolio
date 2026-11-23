@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C4DA1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Promoter Shares">
+<script>
+  // GitHub Pages / installed app: add manifest + icons. Skipped inside Apps Script (googleusercontent.com).
+  window.IN_GAS = /googleusercontent\.com$/.test(location.hostname);
+  if (!window.IN_GAS) {
+    [['manifest','manifest.webmanifest'],['icon','icons/icon-192.png'],['apple-touch-icon','icons/apple-touch-icon.png']]
+      .forEach(([rel, href]) => { const l = document.createElement('link'); l.rel = rel; l.href = href; document.head.appendChild(l); });
+  }
+</script>
+<title>Promoter Share Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --brand:#0C4DA1; --brand-2:#1a62c4; --brand-soft:rgba(12,77,161,.09); --accent:#ED1B24; --accent-soft:rgba(237,27,36,.09);
+  --bg:#f3f5f9; --surface:#ffffff; --surface-2:#f7f8fb; --border:rgba(15,23,42,.09); --border-2:rgba(15,23,42,.16);
+  --text:#0b1220; --text-2:#4b5565; --muted:#8a93a3;
+  --good:#0a8a3a; --good-soft:rgba(10,138,58,.10); --bad:#d03b3b; --bad-soft:rgba(208,59,59,.10); --warn:#b7791f; --warn-soft:rgba(250,178,25,.16);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --grid:#e8eaef; --shadow:0 1px 2px rgba(15,23,42,.05),0 4px 16px rgba(15,23,42,.05); --shadow-lg:0 24px 60px rgba(15,23,42,.22);
+  --r:14px; --r-sm:10px;
+}
+[data-theme="dark"]{
+  --brand:#5b9bff; --brand-2:#7cb0ff; --brand-soft:rgba(91,155,255,.13); --accent:#ff5a60; --accent-soft:rgba(255,90,96,.13);
+  --bg:#0b0f17; --surface:#121826; --surface-2:#171f30; --border:rgba(255,255,255,.08); --border-2:rgba(255,255,255,.16);
+  --text:#eef1f6; --text-2:#b4bccb; --muted:#7c8699;
+  --good:#22c55e; --good-soft:rgba(34,197,94,.13); --bad:#f87171; --bad-soft:rgba(248,113,113,.13); --warn:#fbbf24; --warn-soft:rgba(251,191,36,.13);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s8:#e66767;
+  --grid:#222b3d; --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25); --shadow-lg:0 24px 60px rgba(0,0,0,.55);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--brand)}
+/* ---------- layout ---------- */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.side{position:sticky;top:0;height:100vh;background:var(--surface);border-right:1px solid var(--border);padding:18px 14px;display:flex;flex-direction:column;gap:6px}
+.logo{display:flex;align-items:center;gap:10px;padding:4px 8px 18px}
+.logo-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--brand),#0a3a7a 60%,var(--accent));display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;box-shadow:0 6px 16px rgba(12,77,161,.35)}
+.logo b{display:block;font-size:14px;letter-spacing:-.01em}.logo span{font-size:11px;color:var(--muted)}
+.nav{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;color:var(--text-2);cursor:pointer;font-weight:500;border:0;background:none;width:100%;text-align:left;transition:.15s}
+.nav:hover{background:var(--surface-2);color:var(--text)}
+.nav.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.nav svg{width:18px;height:18px;flex:none}
+.nav .badge{margin-left:auto;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700;border-radius:20px;padding:1px 7px}
+.side-foot{margin-top:auto;padding:12px;border-radius:12px;background:var(--surface-2);font-size:12px;color:var(--text-2);line-height:1.5}
+.main{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:14px 26px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.top h1{font-size:19px;margin:0;letter-spacing:-.02em;font-weight:700}
+.top .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.top .grow{flex:1}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:30px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--text-2);white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px var(--good-soft)}
+.dot.err{background:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}.dot.idle{background:var(--muted);box-shadow:none}
+.content{padding:22px 26px 60px;max-width:1500px;width:100%}
+/* ---------- buttons ---------- */
+.btn{text-decoration:none;display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:10px;border:1px solid var(--border-2);background:var(--surface);cursor:pointer;font-weight:600;font-size:13px;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 4px 14px rgba(12,77,161,.28)}
+.btn.pri:hover{background:var(--brand-2);color:#fff}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.btn.danger:hover{background:var(--bad);color:#fff}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.btn svg{width:16px;height:16px}
+.btn[disabled]{opacity:.55;pointer-events:none}
+.icon-btn{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;border:1px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)}
+.icon-btn:hover{color:var(--brand);border-color:var(--brand)}
+.icon-btn svg{width:17px;height:17px}
+.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+/* ---------- cards ---------- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
+.card h3{margin:0 0 2px;font-size:14px;font-weight:650;letter-spacing:-.01em}
+.card .hint{font-size:12px;color:var(--muted)}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
+.grid{display:grid;gap:16px}
+.kpis{grid-template-columns:repeat(5,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g-73{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
+.kpi{position:relative;overflow:hidden;padding:16px 18px}
+.kpi .lbl{font-size:12px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:6px}
+.kpi .val{font-size:23px;font-weight:750;letter-spacing:-.025em;margin-top:8px;line-height:1.1}
+.kpi .foot{font-size:12px;color:var(--muted);margin-top:7px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.kpi.hero{background:linear-gradient(135deg,#0C4DA1 0%,#0a3a7a 70%,#1b2a55 100%);color:#fff;border:0}
+.kpi.hero .lbl,.kpi.hero .foot{color:rgba(255,255,255,.78)}
+.kpi.hero::after{content:"";position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(237,27,36,.55),transparent 70%)}
+.kpi .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;position:absolute;right:14px;top:14px}
+.kpi .ico svg{width:16px;height:16px}
+.delta{display:inline-flex;align-items:center;gap:3px;font-weight:650;font-size:12px;padding:2px 7px;border-radius:20px}
+.delta.up{color:var(--good);background:var(--good-soft)}.delta.down{color:var(--bad);background:var(--bad-soft)}.delta.flat{color:var(--text-2);background:var(--surface-2)}
+.kpi.hero .delta.up{color:#c9ffd9;background:rgba(34,197,94,.22)}.kpi.hero .delta.down{color:#ffd0d0;background:rgba(237,27,36,.3)}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+/* split bar */
+.split{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;background:var(--surface-2)}
+.split>div{height:100%;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.split>div:first-child{border-radius:7px 0 0 7px}.split>div:last-child{border-radius:0 7px 7px 0}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:12px;color:var(--text-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend b{color:var(--text);font-weight:600}
+.lockcard{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.lockbox{padding:14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border)}
+.lockbox .t{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:7px;font-weight:500}
+.lockbox .t svg{width:15px;height:15px;flex:none}
+.owners-cut{display:inline-block;max-width:230px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+.lockbox .v{font-size:20px;font-weight:750;margin-top:6px;letter-spacing:-.02em}
+.lockbox .s{font-size:12px;color:var(--muted);margin-top:3px}
+.chart-wrap{position:relative;height:280px}
+.chart-wrap.tall{height:340px}
+.status-row{margin-bottom:16px}.status-row:last-child{margin-bottom:0}
+.status-row .h{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:7px;font-weight:600}
+.status-row .h span{color:var(--muted);font-weight:500}
+/* lists */
+.list{display:flex;flex-direction:column}
+.li{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:8px}
+.li:last-child{border-bottom:0}
+.li:hover{background:var(--surface-2)}
+.li .av{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none;color:#fff}
+.li .m{flex:1;min-width:0}.li .m b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.li .m span{font-size:12px;color:var(--muted)}
+.li .r{text-align:right;font-size:13px;font-weight:600}.li .r span{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
+.empty{padding:34px 10px;text-align:center;color:var(--muted);font-size:13px}
+.empty svg{width:40px;height:40px;opacity:.5;display:block;margin:0 auto 10px}
+/* chips */
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;line-height:1.4}
+.chip.hold{background:var(--brand-soft);color:var(--brand)}
+.chip.partial{background:var(--warn-soft);color:var(--warn)}
+.chip.exit{background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.chip.locked{background:var(--accent-soft);color:var(--accent)}
+.chip.released{background:var(--good-soft);color:var(--good)}
+.chip.listed{background:rgba(27,175,122,.12);color:#13895f}
+[data-theme="dark"] .chip.listed{color:#4ade80}
+.chip.unlisted{background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.chip.uc{background:var(--warn-soft);color:var(--warn)}
+.chip.op{background:var(--good-soft);color:var(--good)}
+.chip svg{width:12px;height:12px}
+/* table */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:0 12px;min-width:240px;flex:1;max-width:360px}
+.search input{border:0;outline:0;background:transparent;padding:9px 0;width:100%}
+.search svg{width:16px;height:16px;color:var(--muted)}
+.sel{appearance:none;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a93a3' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;border:1px solid var(--border-2);border-radius:10px;padding:9px 30px 9px 12px;font-size:13px;cursor:pointer;max-width:200px}
+.sel.on{border-color:var(--brand);color:var(--brand);background-color:var(--brand-soft)}
+.tbl-wrap{overflow:auto;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);box-shadow:var(--shadow);max-height:calc(100vh - 230px)}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+th{position:sticky;top:0;background:var(--surface-2);text-align:left;font-weight:600;color:var(--text-2);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;z-index:2}
+th.r,td.r{text-align:right}
+th:hover{color:var(--brand)}
+th .ar{opacity:.35;margin-left:3px}th.sorted .ar{opacity:1;color:var(--brand)}
+td{padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+tbody tr{cursor:pointer;transition:background .12s}
+tbody tr:hover td{background:var(--brand-soft)}
+tfoot td{position:sticky;bottom:0;background:var(--surface-2);font-weight:700;border-top:1px solid var(--border-2);border-bottom:0}
+.co b{display:block;font-weight:600}.co span{font-size:11.5px;color:var(--muted)}
+.sub2{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
+.cards-view{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.hcard{cursor:pointer;transition:transform .15s, box-shadow .15s}
+.hcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.hcard .top2{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.hcard .nm{font-weight:650;font-size:14px}.hcard .sy{font-size:12px;color:var(--muted)}
+.hcard .mv{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.hcard .mv div span{display:block;font-size:11px;color:var(--muted)}.hcard .mv div b{font-size:14px}
+.hcard .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text-2)}
+.seg button.on{background:var(--brand);color:#fff}
+/* drawer / modal */
+.scrim{position:fixed;inset:0;background:rgba(8,12,22,.45);backdrop-filter:blur(3px);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100vh;width:min(620px,100vw);background:var(--bg);z-index:60;transform:translateX(102%);transition:transform .28s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:var(--shadow-lg)}
+.drawer.on{transform:none}
+.dr-head{padding:20px 22px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.dr-head .row{display:flex;align-items:flex-start;gap:12px}
+.dr-head h2{margin:0;font-size:19px;letter-spacing:-.02em}
+.dr-body{flex:1;overflow:auto;padding:18px 22px 30px}
+.dr-foot{padding:14px 22px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mbox{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px}
+.mbox span{display:block;font-size:11.5px;color:var(--muted)}.mbox b{display:block;font-size:16px;margin-top:4px;letter-spacing:-.01em}
+.mbox small{font-size:11.5px;color:var(--muted)}
+.sec-t{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px}
+.kv{display:grid;grid-template-columns:1fr 1fr;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.kv div{padding:10px 14px;border-bottom:1px solid var(--border)}
+.kv div:nth-child(odd){border-right:1px solid var(--border)}
+.kv span{display:block;font-size:11.5px;color:var(--muted)}.kv b{font-weight:600;font-size:13px}
+.tl{position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--border-2);border-radius:2px}
+.tl-i{position:relative;padding:0 0 16px}
+.tl-i::before{content:"";position:absolute;left:-20px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:3px solid var(--brand)}
+.tl-i.fut::before{border-color:var(--accent);border-style:dashed}
+.tl-i b{font-size:13px}.tl-i span{display:block;font-size:12px;color:var(--muted)}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-46%) scale(.98);opacity:0;pointer-events:none;z-index:70;width:min(860px,96vw);max-height:92vh;background:var(--bg);border-radius:18px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;transition:.22s}
+.modal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+.modal.small{width:min(440px,94vw)}
+.m-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:18px 18px 0 0}
+.m-head h2{margin:0;font-size:17px;flex:1}
+.m-body{padding:18px 22px;overflow:auto}
+.m-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center;background:var(--surface);border-radius:0 0 18px 18px}
+.fsec{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+.fsec h4{margin:0 0 12px;font-size:13px;display:flex;align-items:center;gap:8px}
+.fsec h4 i{width:22px;height:22px;border-radius:7px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:800}
+.fg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.f{display:flex;flex-direction:column;gap:5px;min-width:0}
+.f.c2{grid-column:span 2}.f.c3{grid-column:1/-1}
+.f label{font-size:12px;font-weight:600;color:var(--text-2)}
+.f label em{font-style:normal;color:var(--accent)}
+.f input,.f select,.f textarea{border:1px solid var(--border-2);background:var(--surface-2);border-radius:9px;padding:9px 11px;outline:0;transition:.15s;width:100%}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--brand);background:var(--surface);box-shadow:0 0 0 3px var(--brand-soft)}
+.f .help{font-size:11.5px;color:var(--muted)}
+.f.err input{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}
+.f.err #ownTot{color:var(--bad)}
+.preview{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:linear-gradient(135deg,var(--brand-soft),var(--accent-soft));border-radius:14px;padding:14px;margin-bottom:14px}
+.preview div span{display:block;font-size:11px;color:var(--text-2)}.preview div b{font-size:15px}
+.toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:90;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:#0b1220;color:#fff;padding:11px 16px;border-radius:12px;font-size:13px;box-shadow:var(--shadow-lg);display:flex;gap:9px;align-items:center;animation:tin .25s ease;max-width:92vw}
+.toast.ok{border-left:4px solid #22c55e}.toast.err{border-left:4px solid #ff5a60}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}}
+.banner{display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:12px;background:var(--warn-soft);color:var(--text);font-size:12.5px;margin-bottom:16px;border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+.skel{background:linear-gradient(90deg,var(--surface-2),var(--border),var(--surface-2));background-size:200% 100%;animation:sk 1.2s infinite;border-radius:8px;height:14px}
+@keyframes sk{to{background-position:-200% 0}}
+.drop{display:block;margin-top:6px;border:2px dashed var(--border-2);border-radius:14px;padding:26px;text-align:center;color:var(--text-2);cursor:pointer;transition:.15s}
+.drop:hover,.drop.on{border-color:var(--brand);background:var(--brand-soft)}
+.switch{position:relative;width:42px;height:24px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;background:var(--border-2);border-radius:20px;cursor:pointer;transition:.2s}
+.switch span::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch input:checked+span{background:var(--brand)}.switch input:checked+span::before{transform:translateX(18px)}
+.setrow{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+.setrow:last-child{border-bottom:0}
+.setrow .m{flex:1}.setrow b{display:block;font-size:13.5px}.setrow span{font-size:12.5px;color:var(--muted)}
+.month{margin-bottom:18px}
+.month-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.month-h b{font-size:14px}.month-h span{font-size:12px;color:var(--muted)}
+.cd{min-width:62px;text-align:center;padding:6px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:12px;line-height:1.15}
+.cd small{display:block;font-weight:500;font-size:10px;opacity:.85}
+.cd.soon{background:var(--accent);color:#fff}
+.bnav{display:none}
+.show-m{display:none}
+@media (max-width:900px){.show-m{display:inline}}
+@media (display-mode: standalone){ .top{padding-top:calc(14px + env(safe-area-inset-top))} .side{padding-top:calc(18px + env(safe-area-inset-top))} }
+.connect{max-width:560px;margin:6vh auto 0}
+.connect .logo-mark{width:56px;height:56px;font-size:20px;border-radius:16px;margin-bottom:14px}
+.connect h2{margin:0 0 6px;font-size:22px;letter-spacing:-.02em}
+.connect ol{padding-left:18px;color:var(--text-2);font-size:13px;line-height:1.7;margin:10px 0 0}
+.offline{background:var(--surface-2);border:1px solid var(--border);color:var(--text-2)}
+@media (max-width:1200px){.kpis{grid-template-columns:repeat(3,1fr)}.g-73{grid-template-columns:1fr}}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}.side{display:none}
+  @media (display-mode: standalone){ .top{padding-top:calc(12px + env(safe-area-inset-top))} }
+  .kpis{grid-template-columns:repeat(2,1fr)}.g2,.g3{grid-template-columns:1fr}
+  .content{padding:16px 14px 90px}.top{padding:12px 14px}
+  .fg{grid-template-columns:1fr 1fr}.f.c2{grid-column:1/-1}.preview{grid-template-columns:1fr 1fr}.mgrid{grid-template-columns:1fr 1fr}
+  .bnav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:40;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--muted);padding:6px 10px;border-radius:10px;cursor:pointer}
+  .bnav button.on{color:var(--brand)}.bnav svg{width:20px;height:20px}
+  .hide-m{display:none!important}
+  .top{gap:8px}.top .sub{display:none}.top h1{font-size:17px}
+  #lensWrap{padding:2px 2px 2px 8px!important}#lensSel{max-width:96px}
+  .top .btn{padding:8px 10px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="logo"><div class="logo-mark">PS</div><div><b>Promoter Shares</b><span>Portfolio manager</span></div></div>
+    <button class="nav on" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</button>
+    <button class="nav" data-view="holdings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Holdings<span class="badge" id="navCount">0</span></button>
+    <button class="nav" data-view="lockin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Lock-in Calendar</button>
+    <button class="nav" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Prices &amp; Settings</button>
+    <div style="height:8px"></div>
+    <button class="btn pri" id="sideAdd" style="justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>New investment</button>
+    <div class="side-foot" id="sideFoot">LTP source: nepalstock.com</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div><h1 id="pageTitle">Dashboard</h1><div class="sub" id="pageSub">Promoter share portfolio overview</div></div>
+      <div class="grow"></div>
+      <label class="pill" id="lensWrap" title="Show the portfolio for one beneficial owner (scales joint holdings by their %)" style="padding:3px 4px 3px 11px"><span class="hide-m">View as</span><span class="show-m">👤</span>
+        <select id="lensSel" class="sel" style="border:0;padding:4px 26px 4px 6px;background-color:transparent;font-weight:600"></select></label>
+      <span class="pill hide-m" id="ltpPill"><span class="dot idle"></span><span>LTP not fetched yet</span></span>
+      <button class="btn" id="refreshBtn" title="Fetch latest LTP from nepalstock.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg><span class="hide-m">Refresh LTP</span></button>
+      <button class="btn pri hide-m" id="topAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+      <button class="btn" id="installBtn" style="display:none" title="Install as an app on this device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><rect x="4" y="17" width="16" height="4" rx="1"/></svg><span class="hide-m">Install app</span></button>
+      <button class="icon-btn" id="themeBtn" title="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </header>
+    <div class="content" id="view"></div>
+  </main>
+</div>
+
+<nav class="bnav">
+  <button class="on" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Home</button>
+  <button data-view="holdings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Holdings</button>
+  <button data-add="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
+  <button data-view="lockin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Lock-in</button>
+  <button data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="modal" id="formModal"></div>
+<div class="modal small" id="smallModal"></div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+/* =====================================================================
+   Promoter Share Portfolio — front end
+   Runs inside Google Apps Script (google.script.run) or, when opened
+   outside Apps Script, in DEMO mode with sample data in localStorage.
+   ===================================================================== */
+const GAS = typeof google !== 'undefined' && google.script && google.script.run;
+/* Backend for the GitHub Pages / installed app: Apps Script web app URL + a 30-day sign-in token from your password (stored on this device; the password itself is never stored). */
+const CFG_KEY = 'psp_backend', CACHE_KEY = 'psp_cache';
+function getCfg(){ try { const c = JSON.parse(localStorage.getItem(CFG_KEY)||'null'); return c && c.url ? c : null; } catch(e){ return null; } }
+function setCfg(c){ try { if (c) localStorage.setItem(CFG_KEY, JSON.stringify(c)); else localStorage.removeItem(CFG_KEY); } catch(e){} }
+const MODE = () => GAS ? 'gas' : getCfg() ? (getCfg().token ? 'api' : 'login') : (localStorage.getItem('psp_mode')==='demo' ? 'demo' : 'none');
+async function apiCall(fn, args, cfg){
+  cfg = cfg || getCfg();
+  let r;
+  try { r = await fetch(cfg.url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ token: cfg.token, fn, args }) }); }
+  catch(e){ throw new Error(navigator.onLine ? 'Could not reach your Apps Script backend' : 'You are offline'); }
+  let j; try { j = await r.json(); } catch(e){ throw new Error('Backend did not return JSON. Check the web app URL and that access is set to "Anyone"'); }
+  if (!j.ok) { if (j.code === 'AUTH' && getCfg() && getCfg().token) signOutLocal(true); throw new Error(j.error || 'Request failed'); }
+  return j.result;
+}
+const SECTORS = ['Logistics','Commercial Banks','Development Banks','Finance','Microfinance','Hydro Power','Life Insurance','Non Life Insurance','Hotels And Tourism','Manufacturing And Processing','Investment','Trading','Mutual Fund','Others','Cement','Health Care','Education','Information Technology','Agriculture','Real Estate','Infrastructure'];
+const S = { lens:'', holdings:[], prices:{}, companies:[], meta:{}, view:'dashboard', f:{q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:''}, sort:{k:'currentValue',d:-1}, layout:'table', charts:{}, loading:true };
+
+/* ---------------- API ---------------- */
+function call(fn, ...args){
+  if (GAS) return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => rej(e && e.message ? e : new Error(String(e))))[fn](...args));
+  if (MODE()==='api') return apiCall(fn, args).then(res => { cacheData(fn==='api_getData' ? res : res && res.data); return res; });
+  return Promise.resolve().then(() => Demo[fn](...args));
+}
+/** Forget this device's sign-in (keeps the web app link so only the password is needed next time). */
+function signOutLocal(expired){
+  const c = getCfg(); if (c) { delete c.token; setCfg(c); }
+  try { localStorage.removeItem(CACHE_KEY); } catch(e){}
+  S.holdings = []; S.prices = {}; S.meta = {}; S.loading = false; closeAll(); render();
+  if (expired) toast('Signed out. Please enter your PIN','err');
+}
+async function lockApp(){
+  const c = getCfg(); if (c && c.token) { try { await apiCall('logout', []); } catch(e){} }
+  signOutLocal(false); toast('Signed out','ok');
+}
+function cacheData(d){ if (!d || MODE()!=='api') return; try { localStorage.setItem(CACHE_KEY, JSON.stringify(d)); } catch(e){} }
+function cachedData(){ try { return JSON.parse(localStorage.getItem(CACHE_KEY)||'null'); } catch(e){ return null; } }
+const Demo = (() => {
+  const KEY = 'psp_demo_v4';
+  const today = () => new Date().toISOString().slice(0,10);
+  const addM = (m) => { const d = new Date(); d.setMonth(d.getMonth()+m); return d.toISOString().slice(0,10); };
+  // Fictional sample data for demo mode only. Your real holdings live in your Google Sheet.
+  const seed = [
+    {company:'Sample Himal Hydropower Ltd',sector:'Hydro Power',listing:'Listed',listingDate:'2021-06-01',projectStatus:'Operational',dematHolder:'Self',owner:'Self',shares:3000,bonusShares:300,costPerShare:100,investDate:'2019-05-01',lockinDate:'2024-06-01',fairValue:520,exitStatus:'Partial Exit',exitedQty:2000,exitPrice:480},
+    {company:'Example River Energy',sector:'Hydro Power',listing:'Pipeline',projectStatus:'Under Construction',progressPct:70,dematHolder:'Family A',owner:'Self',shares:4000,costPerShare:100,investDate:'2024-02-10',lockinDate:'2030E',fairValue:350},
+    {company:'Demo Agro Products',sector:'Agriculture',listing:'Listed',listingDate:'2025-03-01',projectStatus:'Operational',dematHolder:'Family B',owner:'Self',shares:1500,costPerShare:120,investDate:'2023-08-15',lockinDate:'2028E',fairValue:640},
+    {company:'Mock Valley Cable Car',sector:'Hotels And Tourism',listing:'Not Applied',projectStatus:'Under Construction',progressPct:35,dematHolder:'Self',owner:'Self',shares:2000,costPerShare:100,investDate:'2025-01-20',lockinDate:'2031E',fairValue:250},
+    {company:'Test Logistics Hub',sector:'Logistics',listing:'Not Applied',projectStatus:'Operational',dematHolder:'Family C',owner:'Self',shares:800,costPerShare:300,investDate:'2025-04-05',lockinDate:'2030E',fairValue:700},
+    {company:'Placeholder Hotel Pvt',sector:'Hotels And Tourism',listing:'Not Applied',projectStatus:'Operational',dematHolder:'Self',owner:'Self',shares:1000,costPerShare:150,investDate:'2026-02-11',lockinDate:'2031E',fairValue:400},
+    {company:'Joint Example Hydro (demo)',sector:'Hydro Power',listing:'Not Applied',projectStatus:'Under Construction',progressPct:40,dematHolder:'Self',owner:'Self 20, Friend A 20, Friend B 20, Friend C 20, Friend D 20',shares:10000,costPerShare:100,investDate:'2025-12-01',lockinDate:'2031E',fairValue:300}
+  ];
+  const basePx = {};
+  function load(){ try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return s; } catch(e){}
+    const st = { holdings: seed.map((h,i)=>norm(Object.assign({id:'PS-DEMO'+(i+1)},h))), prices:{}, meta:{lastPriceRefresh:'',lastPriceStatus:'',autoRefresh:false} };
+    st.prices = mkPrices(0); st.meta.lastPriceRefresh = ''; st.meta.lastPriceStatus=''; save(st); return st; }
+  function save(st){ try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e){} }
+  function mkPrices(j){ const o={}; Object.entries(basePx).forEach(([k,[l,p]])=>{ const ltp=+(l*(1+(Math.random()-.5)*j)).toFixed(1); o[k]={name:k,ltp,prevClose:p,pct:+(((ltp-p)/p)*100).toFixed(2),businessDate:today(),fetchedAt:today()}; }); return o; }
+  function norm(h){ const n=k=>h[k]===''||h[k]==null?'':Number(h[k]); ['progressPct','shares','bonusShares','costPerShare','exitedQty','exitPrice','fairValue','manualLtp'].forEach(k=>h[k]=n(k));
+    const tot=(+h.shares||0)+(+h.bonusShares||0), ex=+h.exitedQty||0; if(!['Hold','Partial Exit','Exit'].includes(h.exitStatus)) h.exitStatus = ex<=0?'Hold':(ex>=tot?'Exit':'Partial Exit');
+    if(!['Listed','Pipeline','Not Applied'].includes(h.listing)) h.listing='Not Applied'; h.symbol=(h.symbol||'').toUpperCase(); return h; }
+  function out(st){ return { holdings: st.holdings, prices: st.prices, companies: Object.keys(basePx).map(s=>({symbol:s,name:(st.holdings.find(h=>h.symbol===s)||{}).company||s,sector:(st.holdings.find(h=>h.symbol===s)||{}).sector||''})), meta: Object.assign({}, st.meta, {today:today(), demo:true}) }; }
+  return {
+    api_getData(){ return out(load()); },
+    api_saveHolding(h){ const st=load(); if(!h.company) throw new Error('Company name is required'); if(!(+h.shares>0)) throw new Error('No. of shares must be greater than 0');
+      if (h.exitStatus==='Exit' && !(+h.exitedQty)) h.exitedQty=(+h.shares)+(+h.bonusShares||0);
+      h=norm(Object.assign({},h)); const i=st.holdings.findIndex(x=>x.id===h.id); if(i>=0) st.holdings[i]=h; else { h.id='PS-'+Math.random().toString(36).slice(2,10).toUpperCase(); st.holdings.push(h);} save(st); return {ok:true,id:h.id,data:out(st)}; },
+    api_segregateHolding(id, parts){ const st=load(); const i=st.holdings.findIndex(h=>h.id===id); if(i<0) throw new Error('Holding not found');
+      const nw = parts.map(p=>norm(Object.assign({}, p, {id:'PS-'+Math.random().toString(36).slice(2,10).toUpperCase()}))); st.holdings.splice(i,1,...nw); save(st); return {ok:true,count:nw.length,data:out(st)}; },
+    api_deleteHolding(id){ const st=load(); st.holdings=st.holdings.filter(h=>h.id!==id); save(st); return {ok:true,data:out(st)}; },
+    api_importHoldings(rows){ const st=load(); rows.forEach(r=>{ r=norm(r); r.id='PS-'+Math.random().toString(36).slice(2,10).toUpperCase(); st.holdings.push(r);}); save(st); return {ok:true,count:rows.length,data:out(st)}; },
+    api_refreshPrices(){ const st=load(); st.prices=mkPrices(.04); st.meta.lastPriceRefresh=new Date().toISOString().slice(0,16).replace('T',' '); st.meta.lastPriceStatus='OK: demo prices'; save(st); return {ok:true,message:'Demo: prices simulated (connect Apps Script for live nepalstock.com LTP)',data:out(st)}; },
+    api_syncCompanies(){ return {ok:true,message:'Demo: company list sync needs Apps Script',data:out(load())}; },
+    api_matchSymbols(){ return {ok:true,message:'Demo: symbol matching needs Apps Script',data:out(load())}; },
+    api_setFeedUrl(u){ const st=load(); st.meta.feedUrl=u||''; save(st); return {ok:true,message:u?'Price feed saved':'Price feed removed',data:out(st)}; },
+    api_importPrices(pl){ const st=load(); const rows=(pl.p||[]).filter(r=>r&&r[0]&&+r[1]); if(!rows.length) throw new Error('No prices found in the pasted data');
+      st.prices={}; rows.forEach(r=>{ st.prices[String(r[0]).toUpperCase()]={name:'',ltp:+r[1],prevClose:+r[2]||0,pct:r[3]===''?null:+r[3],businessDate:r[4]||'',fetchedAt:today(),source:pl.src||'pasted'}; });
+      st.meta.lastPriceRefresh=new Date().toISOString().slice(0,16).replace('T',' '); st.meta.lastPriceStatus='OK: '+rows.length+' prices from '+(pl.src||'pasted'); save(st);
+      return {ok:true,message:'LTP updated for '+rows.length+' securities from '+(pl.src||'pasted'),data:out(st)}; },
+    api_setAutoRefresh(on){ const st=load(); st.meta.autoRefresh=!!on; save(st); return {ok:true,message:on?'Auto-refresh ON (demo)':'Auto-refresh OFF (demo)',data:out(st)}; },
+    reset(){ localStorage.removeItem(KEY); }
+  };
+})();
+
+/* ---------------- utils ---------------- */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const N = v => { const n = Number(String(v ?? '').replace(/[, ]/g,'')); return isFinite(n) ? n : 0; };
+const nf0 = new Intl.NumberFormat('en-IN', {maximumFractionDigits:0});
+const nf2 = new Intl.NumberFormat('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+const nfq = new Intl.NumberFormat('en-IN', {maximumFractionDigits:2});
+const fmtQ = n => nfq.format(Math.round((n||0)*100)/100);
+const fmtRs = (n, dp) => (n<0?'-':'') + 'Rs ' + (dp===0 ? nf0 : nf2).format(Math.abs(n||0));
+function fmtC(n){ const a=Math.abs(n||0), s=n<0?'-':''; if(a>=1e7) return s+'Rs '+(a/1e7).toFixed(a>=1e9?1:2)+' Cr'; if(a>=1e5) return s+'Rs '+(a/1e5).toFixed(2)+' L'; return s+'Rs '+nf0.format(a); }
+const fmtPct = (n, dp=2) => n==null||!isFinite(n) ? '—' : (n>0?'+':'') + n.toFixed(dp) + '%';
+const sgn = n => n>0.0001 ? 'pos' : n<-0.0001 ? 'neg' : '';
+const todayISO = () => S.meta.today || new Date().toISOString().slice(0,10);
+const pd = s => { if(!s) return null; const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; };
+const daysBetween = (a,b) => Math.round((pd(b)-pd(a))/864e5);
+const fmtD = s => { const d=pd(s); return d ? d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'; };
+function dur(days){ if(days==null) return '—'; const y=Math.floor(days/365), m=Math.floor((days%365)/30.44); return y? `${y}y ${m}m` : m ? `${m}m ${Math.round(days%30.44)}d` : `${days}d`; }
+function initials(s){ return String(s||'?').replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || '?'; }
+const AV_COLORS = ['var(--s1)','var(--s2)','var(--s3)','var(--s7)','var(--s5)','var(--s6)','var(--s4)','var(--s8)'];
+function avColor(s){ let h=0; for(const c of String(s)) h=(h*31+c.charCodeAt(0))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/** XIRR with Newton-Raphson + bisection fallback. flows: [{d:'yyyy-mm-dd', v:number}] */
+function xirr(flows){
+  flows = flows.filter(f => f.d && isFinite(f.v) && f.v !== 0);
+  if (flows.length < 2 || !flows.some(f=>f.v<0) || !flows.some(f=>f.v>0)) return null;
+  const t0 = pd(flows.reduce((a,f)=> f.d<a ? f.d : a, flows[0].d));
+  const ts = flows.map(f => (pd(f.d)-t0)/864e5/365);
+  if (Math.max(...ts) < 30/365) return null;
+  const f = r => flows.reduce((s,fl,i)=> s + fl.v/Math.pow(1+r, ts[i]), 0);
+  const df = r => flows.reduce((s,fl,i)=> s - ts[i]*fl.v/Math.pow(1+r, ts[i]+1), 0);
+  let r = 0.12;
+  for (let i=0;i<60;i++){ const y=f(r), d=df(r); if(!isFinite(y)||!isFinite(d)||d===0) break; const nr = r - y/d; if (nr<=-0.9999) break; if (Math.abs(nr-r)<1e-8) return nr; r = nr; }
+  let lo=-0.9999, hi=10, flo=f(lo), fhi=f(hi); if (flo*fhi>0) return null;
+  for (let i=0;i<200;i++){ const mid=(lo+hi)/2, fm=f(mid); if (Math.abs(fm)<1e-7) return mid; if (flo*fm<0){hi=mid;fhi=fm}else{lo=mid;flo=fm} }
+  return (lo+hi)/2;
+}
+
+/* ---------------- calculations ---------------- */
+/** Lock-in release: exact date 'yyyy-mm-dd', or expected year 'YYYYE' (treated as 31-Dec of that year). */
+function relInfo(v){ v=String(v||'').trim(); let m=v.match(/^(\d{4})\s*E$/i); if(m) return {d:m[1]+'-12-31', est:true, y:m[1]}; m=v.match(/^(\d{4}-\d{2}-\d{2})/); return m?{d:m[1],est:false}:null; }
+const fmtRel = v => { const r=relInfo(v); return !r ? '—' : r.est ? r.y+' (expected)' : fmtD(r.d); };
+/** Ownership split. "Self 20, Ram 20%, Hari:20; Sita (20%), Gita" → names without % share the remainder equally. */
+function parseOwners(str){
+  const parts = String(str||'').split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
+  const list = parts.map(p => { const m = p.match(/^(.*?)[\s:=(]*(\d+(?:\.\d+)?)\s*%?\)?\s*$/); return m && m[1].trim() ? {name:m[1].trim(), pct:+m[2]} : {name:p.replace(/[()%]/g,'').trim(), pct:null}; }).filter(o=>o.name);
+  const fixed = list.filter(o=>o.pct!=null).reduce((a,o)=>a+o.pct,0), free = list.filter(o=>o.pct==null);
+  free.forEach(o => o.pct = free.length ? Math.max(0, 100-fixed)/free.length : 0);
+  return list;
+}
+const fmtOwners = list => list.length===1 && Math.abs(list[0].pct-100)<1e-9 ? list[0].name : list.map(o=>`${o.name} ${+o.pct.toFixed(4)}%`).join(', ');
+const ownerPct = (h, name) => { const o = parseOwners(h.owner).find(o=>o.name.toLowerCase()===String(name).toLowerCase()); return o ? o.pct : 0; };
+const allOwners = () => [...new Set(S.holdings.flatMap(h=>parseOwners(h.owner).map(o=>o.name)))].sort();
+const isJoint = h => parseOwners(h.owner).length > 1;
+/** Largest-remainder split of a whole number of shares by percentages. */
+function allocate(total, pcts){ total = Math.round(N(total)); const raw = pcts.map(p=>total*p/100), fl = raw.map(Math.floor); let left = total - fl.reduce((a,b)=>a+b,0);
+  raw.map((v,i)=>[v-fl[i],i]).sort((a,b)=>b[0]-a[0]).forEach(([,i])=>{ if(left>0){ fl[i]++; left--; } }); return fl; }
+function calc(h, f){
+  f = f==null ? 1 : f;   // ownership fraction for the "View as" lens
+  const t = todayISO();
+  const orig = N(h.shares)*f, bonus = N(h.bonusShares)*f, shares = orig + bonus, rate = N(h.costPerShare);
+  const totalCost = orig*rate, cost = shares ? totalCost/shares : 0;            // cost basis per share after bonus
+  const exQ = Math.min(N(h.exitedQty)*f, shares), exP = N(h.exitPrice);
+  const rem = shares - exQ;
+  const px = S.prices[String(h.symbol||'').toUpperCase()];
+  let price = cost, src = 'Cost';
+  if (N(h.manualLtp)) { price = N(h.manualLtp); src = 'Manual'; }
+  else if (h.listing === 'Listed' && px && px.ltp) { price = px.ltp; src = 'LTP'; }
+  else if (N(h.fairValue)) { price = N(h.fairValue); src = h.listing==='Listed' ? 'Current rate' : 'Expected rate'; }
+  const remCost = rem*cost, curVal = rem*price, proceeds = exQ*exP;
+  const realPL = exQ*(exP-cost), unPL = rem*(price-cost), totPL = realPL+unPL;
+  const derived = exQ<=0 ? 'Hold' : (exQ>=shares ? 'Exit' : 'Partial Exit');
+  const exitStatus = ['Hold','Partial Exit','Exit'].includes(h.exitStatus) ? h.exitStatus : derived;
+  const rel = relInfo(h.lockinDate);
+  const locked = rem>0 && !!rel && rel.d > t;
+  const endD = exQ>=shares && h.exitDate ? h.exitDate : t;
+  const flows = [{d:h.investDate, v:-totalCost}];
+  if (proceeds) flows.push({d:h.exitDate || t, v:proceeds});
+  if (curVal) flows.push({d:t, v:curVal});
+  const dayChg = (src==='LTP' && px && px.prevClose) ? rem*(px.ltp-px.prevClose) : 0;
+  return {
+    orig, bonus, shares, rate, cost, exQ, exP, rem, price, src, px, totalCost, remCost, curVal, proceeds, realPL, unPL, totPL,
+    retPct: totalCost ? totPL/totalCost*100 : null, unPct: remCost ? unPL/remCost*100 : null,
+    exitStatus, derived, rel, locked, lockedQty: locked?rem:0, liquidQty: locked?0:rem, lockedVal: locked?curVal:0, liquidVal: locked?0:curVal,
+    daysToRelease: rel ? daysBetween(t, rel.d) : null,
+    heldDays: h.investDate ? daysBetween(h.investDate, endD) : null,
+    xirr: h.investDate ? xirr(flows) : null, flows, dayChg,
+    dayPct: (src==='LTP' && px) ? px.pct : null
+  };
+}
+function rows(all){
+  if (!S.lens || all) return S.holdings.map(h => Object.assign({h, f:1}, calc(h)));
+  return S.holdings.map(h => [h, ownerPct(h, S.lens)/100]).filter(x=>x[1]>0).map(([h,f]) => Object.assign({h, f}, calc(h, f)));
+}
+function totals(list){
+  const t = {invested:0, remCost:0, cur:0, real:0, un:0, proceeds:0, shares:0, rem:0, lockedQty:0, liquidQty:0, lockedVal:0, liquidVal:0, day:0, flows:[], active:0, exited:0, partial:0};
+  list.forEach(r => { t.invested+=r.totalCost; t.remCost+=r.remCost; t.cur+=r.curVal; t.real+=r.realPL; t.un+=r.unPL; t.proceeds+=r.proceeds; t.shares+=r.shares; t.rem+=r.rem; t.lockedQty+=r.lockedQty; t.liquidQty+=r.liquidQty; t.lockedVal+=r.lockedVal; t.liquidVal+=r.liquidVal; t.day+=r.dayChg; t.flows.push(...r.flows);
+    if(r.exitStatus==='Exit') t.exited++; else { t.active++; if(r.exitStatus==='Partial Exit') t.partial++; } });
+  t.tot = t.real + t.un; t.retPct = t.invested ? t.tot/t.invested*100 : null; t.xirr = xirr(t.flows);
+  return t;
+}
+
+/* ---------------- icons ---------------- */
+const IC = {
+  wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H5a2 2 0 0 1 0-4h13v4"/><path d="M3 5v14a2 2 0 0 0 2 2h15V7"/><circle cx="16" cy="14" r="1.5"/></svg>',
+  trend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
+  coins:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="M18.1 10.4A6 6 0 1 1 10.3 18"/></svg>',
+  pct:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.7-1.5"/></svg>',
+  layers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>',
+  building:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  exit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+  dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>',
+  grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>'
+};
+function exitChip(s){ return s==='Exit' ? `<span class="chip exit">${IC.exit}Exit</span>` : s==='Partial Exit' ? `<span class="chip partial">◐ Partial Exit</span>` : `<span class="chip hold">● Hold</span>`; }
+function lockChip(r, h){ if (r.rem<=0) return '<span class="chip exit">—</span>'; if (!r.rel) return `<span class="chip released">${IC.unlock}No lock-in</span>`; return r.locked ? `<span class="chip locked">${IC.lock}${r.rel.est ? 'Till '+r.rel.y+'E' : r.daysToRelease+'d left'}</span>` : `<span class="chip released">${IC.unlock}Released</span>`; }
+const listChip = s => s==='Listed' ? '<span class="chip listed">Listed</span>' : s==='Pipeline' ? '<span class="chip partial">IPO Pipeline</span>' : '<span class="chip unlisted">Not Applied</span>';
+const projChip = (s, pg) => s==='Under Construction' ? `<span class="chip uc">⚒ Under Construction${N(pg)?' · '+N(pg)+'%':''}</span>` : '<span class="chip op">⚡ Operational</span>';
+const delta = (n, txt) => `<span class="delta ${n>0.0001?'up':n<-0.0001?'down':'flat'}">${n>0.0001?'▲':n<-0.0001?'▼':'•'} ${txt}</span>`;
+
+/* ---------------- navigation ---------------- */
+const TITLES = { dashboard:['Dashboard','Promoter share portfolio overview'], holdings:['Holdings','Every promoter investment: details, returns and status'], lockin:['Lock-in Calendar','Promoter lock-in releases and locked vs liquid shares'], settings:['Prices & Settings','nepalstock.com LTP feed, import / export and preferences'] };
+function go(v){ S.view = v; try{ history.replaceState(null,'','#'+v); }catch(e){} $$('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view===v)); const [t,s]=TITLES[v]; $('#pageTitle').textContent=t; $('#pageSub').textContent=s; render(); window.scrollTo(0,0); }
+function render(){
+  Object.values(S.charts).forEach(c => c.destroy()); S.charts = {};
+  $('#navCount').textContent = S.holdings.filter(h=>calc(h).exitStatus!=='Exit').length;
+  renderPill(); renderLens();
+  if (MODE()==='none' || MODE()==='login') { renderConnect(); return; }
+  { const [t,sb] = TITLES[S.view]; $('#pageTitle').textContent = t; $('#pageSub').textContent = sb; }
+  if (S.loading) { $('#view').innerHTML = skeleton(); return; }
+  ({dashboard:renderDash, holdings:renderHoldings, lockin:renderLock, settings:renderSettings})[S.view]();
+}
+function renderConnect(){
+  const saved = getCfg(), relogin = !!(saved && saved.url);
+  $('#pageTitle').textContent = relogin ? 'Sign in' : 'Welcome'; $('#pageSub').textContent = relogin ? 'Enter your app PIN' : 'Connect your Google Sheet';
+  $('#view').innerHTML = `<div class="connect card" style="padding:26px">
+    <div class="logo-mark">PS</div><h2>${relogin ? 'Welcome back' : 'Connect your portfolio'}</h2>
+    <div class="hint" style="font-size:13px">${relogin ? 'Enter your app PIN to open your portfolio.' : 'Your holdings stay in your own Google Sheet. This app reaches it through your Apps Script web app and signs in with your app PIN. The PIN is never stored on this device.'}</div>
+    <form class="fg" id="cForm" style="grid-template-columns:1fr;margin-top:18px" onsubmit="return false">
+      <div class="f" style="${relogin?'display:none':''}"><label>Apps Script web app URL</label><input id="cUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" value="${esc(relogin?saved.url:'')}"></div>
+      <div class="f"><label>App PIN / password</label><input id="cPw" type="password" autocomplete="current-password" placeholder="••••"></div>
+    </form>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn pri" id="cGo">${relogin?'Sign in':'Connect'}</button>${relogin?'<button class="btn" id="cChange">Use a different link</button>':'<button class="btn" id="cDemo">Try with demo data</button>'}<span class="hint" id="cErr" style="color:var(--bad);align-self:center"></span></div>
+    ${relogin?'':`<ol><li>In the Google Sheet: menu <b>Promoter Portfolio → Set app PIN / password</b>.</li><li>In Apps Script: Deploy → New deployment → Web app → Execute as <b>Me</b>, Who has access <b>Anyone</b> → copy the URL.</li><li>Paste the URL here, enter the PIN, Connect. Each device stays signed in for 30 days.</li></ol>`}</div>`;
+  const go = async () => {
+    const url = $('#cUrl').value.trim(), pw = $('#cPw').value;
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) { $('#cErr').textContent = 'URL should look like https://script.google.com/macros/s/…/exec'; return; }
+    if (!pw) { $('#cErr').textContent = 'Enter your app PIN'; return; }
+    const b = $('#cGo'); b.disabled = true; b.textContent = 'Signing in…'; $('#cErr').textContent = '';
+    try {
+      const r = await apiCall('login', [pw], { url });
+      const cfg = { url, token: r.token }; setCfg(cfg); localStorage.removeItem('psp_mode');
+      const d = await apiCall('api_getData', [], cfg); cacheData(d); applyData(d); S.loading = false;
+      toast('Signed in · stays signed in for ' + r.days + ' days','ok'); render();
+    } catch(e){ $('#cErr').textContent = e.message; b.disabled = false; b.textContent = relogin?'Sign in':'Connect'; }
+  };
+  $('#cGo').onclick = go; $('#cPw').onkeydown = e => { if (e.key === 'Enter') go(); };
+  setTimeout(() => (relogin ? $('#cPw') : $('#cUrl')).focus(), 50);
+  if ($('#cDemo')) $('#cDemo').onclick = () => { localStorage.setItem('psp_mode','demo'); boot(); };
+  if ($('#cChange')) $('#cChange').onclick = () => { setCfg(null); render(); };
+}
+function skeleton(){ return `<div class="grid kpis">${'<div class="card kpi"><div class="skel" style="width:50%"></div><div class="skel" style="height:26px;margin-top:14px"></div><div class="skel" style="width:70%;margin-top:12px"></div></div>'.repeat(5)}</div><div class="grid g-73" style="margin-top:16px"><div class="card" style="height:330px"><div class="skel" style="width:30%"></div></div><div class="card" style="height:330px"><div class="skel" style="width:40%"></div></div></div>`; }
+function renderLens(){
+  const sel = $('#lensSel'), owners = allOwners(); if (S.lens && !owners.includes(S.lens)) S.lens = '';
+  sel.innerHTML = `<option value="">All owners</option>` + owners.map(o=>`<option ${S.lens===o?'selected':''}>${esc(o)}</option>`).join('');
+  $('#lensWrap').style.display = owners.length > 1 ? '' : 'none';
+  $('#lensWrap').classList.toggle('on', !!S.lens); $('#lensWrap').style.borderColor = S.lens ? 'var(--brand)' : '';
+}
+function renderPill(){
+  const m = S.meta, p = $('#ltpPill'), ok = (m.lastPriceStatus||'').startsWith('OK');
+  const err = (m.lastPriceStatus||'').startsWith('ERR');
+  p.innerHTML = `<span class="dot ${m.offline?'idle':ok?'':err?'err':'idle'}"></span><span>${m.offline?'Offline · ':''}${m.lastPriceRefresh ? 'LTP · '+esc(m.lastPriceRefresh) : 'LTP not fetched yet'}${m.autoRefresh?' · auto':''}</span>`;
+  p.title = m.lastPriceStatus || '';
+  $('#sideFoot').innerHTML = `<b style="color:var(--text)">LTP source</b><br>${esc((Object.values(S.prices)[0]||{}).source||'nepalstock.com / GitHub feed')}${m.demo?'<br><span style="color:var(--warn)">Demo mode: sample data</span>':''}<br>${m.lastPriceRefresh?'Last: '+esc(m.lastPriceRefresh):''}`;
+}
+
+/* ---------------- DASHBOARD ---------------- */
+const lensNote = () => S.lens ? `<div class="banner" style="background:var(--brand-soft);border-color:transparent">👤 <span>Showing <b>${esc(S.lens)}</b>'s share only. Joint holdings are scaled by ${esc(S.lens)}'s ownership %. <a href="#" onclick="S.lens='';try{localStorage.setItem('psp_lens','')}catch(e){};render();return false">Show all owners</a></span></div>` : '';
+function renderDash(){
+  const R = rows(), T = totals(R), act = R.filter(r=>r.rem>0);
+  if (!R.length) { $('#view').innerHTML = `<div class="card empty">${IC.box}<b style="color:var(--text);font-size:15px">No promoter investments yet</b><br>Add your first holding to see the dashboard.<br><br><button class="btn pri" onclick="openForm()">Add investment</button></div>`; return; }
+  const upcoming = act.filter(r=>r.locked).sort((a,b)=>a.daysToRelease-b.daysToRelease || (a.rel.est-b.rel.est));
+  const next = upcoming[0];
+  const dayPct = (T.cur - T.day) ? T.day/(T.cur - T.day)*100 : 0;
+  const lockPct = T.cur ? T.lockedVal/T.cur*100 : 0;
+  const listedVal = act.filter(r=>r.h.listing==='Listed').reduce((s,r)=>s+r.curVal,0);
+  const offl = S.meta.offline ? `<div class="banner offline">📴 <span>Showing the copy saved on this device. Tap ⟳ to refresh when you're back online.</span></div>` : '';
+  const banner = offl + (S.meta.demo ? `<div class="banner">⚠️ <span><b>Demo mode</b>: you're viewing sample data. <a href="#" onclick="localStorage.removeItem('psp_mode');boot();return false">Connect your Google Sheet</a> to use your own portfolio.</span></div>` : '');
+  const err = (S.meta.lastPriceStatus||'').startsWith('ERR') ? `<div class="banner" style="background:var(--bad-soft)">⚠️ <span>Last LTP refresh failed: ${esc(S.meta.lastPriceStatus)}. Values use the last saved LTP.</span></div>` : '';
+  $('#view').innerHTML = banner + err + lensNote() + `
+  <div class="grid kpis">
+    <div class="card kpi hero"><div class="lbl">Current portfolio value</div><div class="val num">${fmtC(T.cur)}</div>
+      <div class="foot">${delta(T.retPct, fmtPct(T.retPct)+' total')} ${T.day ? delta(T.day, fmtPct(dayPct)+' today') : ''}</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--brand-soft);color:var(--brand)">${IC.wallet}</div><div class="lbl">Total invested</div><div class="val num">${fmtC(T.invested)}</div><div class="foot">${R.length} investments · ${fmtC(T.remCost)} still deployed</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--good-soft);color:var(--good)">${IC.trend}</div><div class="lbl">Unrealized P/L</div><div class="val num ${sgn(T.un)}">${fmtC(T.un)}</div><div class="foot">${delta(T.un, fmtPct(T.remCost?T.un/T.remCost*100:0))} on holdings</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--accent-soft);color:var(--accent)">${IC.coins}</div><div class="lbl">Realized P/L</div><div class="val num ${sgn(T.real)}">${fmtC(T.real)}</div><div class="foot">${fmtC(T.proceeds)} exit proceeds</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--brand-soft);color:var(--brand)">${IC.pct}</div><div class="lbl">Portfolio XIRR</div><div class="val num ${sgn(T.xirr)}">${T.xirr==null?'—':fmtPct(T.xirr*100,1)}</div><div class="foot">Annualised, all cash flows</div></div>
+  </div>
+  <div class="grid kpis" style="margin-top:16px">
+    <div class="card kpi"><div class="ico" style="background:var(--brand-soft);color:var(--brand)">${IC.layers}</div><div class="lbl">No. of shares held</div><div class="val num">${fmtQ(T.rem)}</div><div class="foot">of ${fmtQ(T.shares)} acquired · ${fmtQ(T.shares-T.rem)} exited</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--accent-soft);color:var(--accent)">${IC.lock}</div><div class="lbl">Locked shares</div><div class="val num">${fmtQ(T.lockedQty)}</div><div class="foot">Value <b style="color:var(--text)">${fmtC(T.lockedVal)}</b></div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--good-soft);color:var(--good)">${IC.unlock}</div><div class="lbl">Liquid shares</div><div class="val num">${fmtQ(T.liquidQty)}</div><div class="foot">Value <b style="color:var(--text)">${fmtC(T.liquidVal)}</b></div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--brand-soft);color:var(--brand)">${IC.building}</div><div class="lbl">Companies</div><div class="val num">${T.active}<span style="font-size:14px;color:var(--muted);font-weight:600"> active</span></div><div class="foot">${T.partial} partial exit · ${T.exited} fully exited</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--accent-soft);color:var(--accent)">${IC.cal}</div><div class="lbl">Next lock-in release</div><div class="val" style="font-size:17px">${next ? esc(next.h.symbol || next.h.company) : 'None pending'}</div><div class="foot">${next ? fmtRel(next.h.lockinDate)+(next.rel.est?'':' · in '+next.daysToRelease+' days') : 'All lock-ins released'}</div></div>
+  </div>
+
+  <div class="grid g-73" style="margin-top:16px">
+    <div class="card"><div class="card-head"><div><h3>Invested vs current value, by company</h3><div class="hint">Shares still held · cost basis vs market / fair value</div></div></div><div class="chart-wrap tall"><canvas id="cCompany"></canvas></div></div>
+    <div class="card"><div class="card-head"><div><h3>Locked vs liquid</h3><div class="hint">Current value of shares still held, split by lock-in</div></div></div>
+      <div class="split" title="Locked ${fmtPct(lockPct,1)}"><div style="width:${lockPct}%;background:var(--accent)"></div><div style="width:${100-lockPct}%;background:var(--s3)"></div></div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Locked <b>${lockPct.toFixed(1)}%</b></span><span><i style="background:var(--s3)"></i>Liquid <b>${(100-lockPct).toFixed(1)}%</b></span></div>
+      <div class="lockcard">
+        <div class="lockbox"><div class="t">${IC.lock} Locked</div><div class="v num">${fmtC(T.lockedVal)}</div><div class="s num">${fmtQ(T.lockedQty)} shares · ${act.filter(r=>r.locked).length} holdings</div></div>
+        <div class="lockbox"><div class="t">${IC.unlock} Liquid</div><div class="v num">${fmtC(T.liquidVal)}</div><div class="s num">${fmtQ(T.liquidQty)} shares · ${act.filter(r=>!r.locked).length} holdings</div></div>
+      </div>
+      <div class="sec-t" style="margin-top:20px">Status mix</div>
+      ${statusRow('Exit status · by count', [['Hold',R.filter(r=>r.exitStatus==='Hold').length,'var(--s1)'],['Partial Exit',R.filter(r=>r.exitStatus==='Partial Exit').length,'var(--s4)'],['Exit',R.filter(r=>r.exitStatus==='Exit').length,'var(--muted)']], v=>v)}
+      ${statusRow('Listing / IPO · by current value', [['Listed',listedVal,'var(--s3)'],['IPO Pipeline',act.filter(r=>r.h.listing==='Pipeline').reduce((s,r)=>s+r.curVal,0),'var(--s4)'],['Not Applied',act.filter(r=>r.h.listing==='Not Applied').reduce((s,r)=>s+r.curVal,0),'var(--s7)']], fmtC)}
+      ${statusRow('Project status · by current value', [['Operational',act.filter(r=>r.h.projectStatus!=='Under Construction').reduce((s,r)=>s+r.curVal,0),'var(--s6)'],['Under Construction',act.filter(r=>r.h.projectStatus==='Under Construction').reduce((s,r)=>s+r.curVal,0),'var(--s2)']], fmtC)}
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><div class="card-head"><div><h3>Sector allocation</h3><div class="hint">Current value of shares held</div></div></div><div class="chart-wrap"><canvas id="cSector"></canvas></div></div>
+    <div class="card"><div class="card-head"><div><h3>By beneficial owner</h3><div class="hint">Current value by ownership %, all owners (joint holdings split)</div></div></div><div class="chart-wrap"><canvas id="cOwner"></canvas></div></div>
+    <div class="card"><div class="card-head"><div><h3>By demat account holder</h3><div class="hint">Current value of shares held${S.lens?' · '+esc(S.lens)+"'s share":''}</div></div></div><div class="chart-wrap"><canvas id="cHolder"></canvas></div></div>
+    <div class="card"><div class="card-head"><div><h3>Capital deployed over time</h3><div class="hint">Cumulative investment by date of investment</div></div></div><div class="chart-wrap"><canvas id="cTime"></canvas></div></div>
+  </div>
+
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><div class="card-head"><div><h3>Upcoming lock-in releases</h3><div class="hint">Promoter shares becoming tradable</div></div><button class="btn sm" onclick="go('lockin')">Calendar</button></div>
+      <div class="list">${upcoming.length ? upcoming.slice(0,6).map(r=>`<div class="li" onclick="openDrawer('${r.h.id}')">${cdBox(r)}<div class="m"><b>${esc(r.h.company)}</b><span>${fmtRel(r.h.lockinDate)} · ${fmtQ(r.rem)} shares</span></div><div class="r num">${fmtC(r.curVal)}<span>${esc(r.h.dematHolder||'')}</span></div></div>`).join('') : `<div class="empty">${IC.unlock}No pending lock-ins</div>`}</div></div>
+    <div class="card"><div class="card-head"><div><h3>Top performers</h3><div class="hint">By total return on cost (realized + unrealized)</div></div><button class="btn sm" onclick="go('holdings')">All holdings</button></div>
+      <div class="list">${R.filter(r=>r.retPct!=null).sort((a,b)=>b.retPct-a.retPct).slice(0,6).map(r=>`<div class="li" onclick="openDrawer('${r.h.id}')"><div class="av" style="background:${avColor(r.h.company)}">${esc(initials(r.h.symbol||r.h.company))}</div><div class="m"><b>${esc(r.h.company)}</b><span>${esc(r.h.sector||'—')} · ${r.exitStatus}</span></div><div class="r num ${sgn(r.totPL)}">${fmtPct(r.retPct,1)}<span>${fmtC(r.totPL)}</span></div></div>`).join('')}</div></div>
+  </div>`;
+  drawDashCharts(R, act);
+}
+function cdBox(r){ return r.rel.est ? `<div class="cd" title="Expected year">${r.rel.y}<small>expected</small></div>` : `<div class="cd ${r.daysToRelease<=30?'soon':''}">${r.daysToRelease}<small>days</small></div>`; }
+function statusRow(title, parts, fmt){
+  const tot = parts.reduce((s,p)=>s+p[1],0) || 1;
+  return `<div class="status-row"><div class="h">${title}</div><div class="split">${parts.filter(p=>p[1]>0).map(p=>`<div style="width:${p[1]/tot*100}%;background:${p[2]}" title="${p[0]}: ${fmt(p[1])}"></div>`).join('')}</div>
+  <div class="legend">${parts.map(p=>`<span><i style="background:${p[2]}"></i>${p[0]} <b>${fmt(p[1])}</b></span>`).join('')}</div></div>`;
+}
+function chartBase(){
+  const text2 = css('--text-2'), grid = css('--grid'), muted = css('--muted');
+  Chart.defaults.font.family = 'Inter, system-ui, sans-serif'; Chart.defaults.font.size = 11.5; Chart.defaults.color = muted;
+  return { text2, grid, muted, tooltip:{ backgroundColor: document.documentElement.dataset.theme==='dark'?'#1e2638':'#0b1220', padding:10, cornerRadius:8, titleFont:{weight:'600'}, boxPadding:4, usePointStyle:true } };
+}
+function groupSum(list, key){ const m = {}; list.forEach(r => { const k = (typeof key==='function'?key(r):r.h[key]) || 'Unspecified'; m[k]=(m[k]||0)+r.curVal; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]); }
+function foldOther(arr, n){ if (arr.length<=n) return arr; const top = arr.slice(0,n-1); top.push(['Other', arr.slice(n-1).reduce((s,x)=>s+x[1],0)]); return top; }
+function hbar(id, entries, color){
+  const B = chartBase(), tot = entries.reduce((s,e)=>s+e[1],0)||1;
+  S.charts[id] = new Chart($('#'+id), { type:'bar', data:{ labels: entries.map(e=>e[0]), datasets:[{ data: entries.map(e=>e[1]), backgroundColor: color, borderRadius:4, borderSkipped:'start', maxBarThickness:16 }]},
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{...B.tooltip, callbacks:{ label: c => ` ${fmtRs(c.raw,0)}  (${(c.raw/tot*100).toFixed(1)}%)` }}},
+      scales:{ x:{ grid:{color:B.grid}, border:{display:false}, ticks:{ maxRotation:0, maxTicksLimit:5, callback: v => fmtC(v).replace('Rs ','') } }, y:{ grid:{display:false}, border:{color:B.grid}, ticks:{ color:B.text2, callback(v){ const l=this.getLabelForValue(v); return l.length>22?l.slice(0,21)+'…':l; } } } } } });
+}
+function drawDashCharts(R, act){
+  if (typeof Chart === 'undefined') return;
+  const B = chartBase();
+  const top = act.slice().sort((a,b)=>b.curVal-a.curVal).slice(0,10);
+  S.charts.cCompany = new Chart($('#cCompany'), { type:'bar', data:{ labels: top.map(r=>r.h.symbol || r.h.company), datasets:[
+      { label:'Invested (cost of shares held)', data: top.map(r=>r.remCost), backgroundColor: css('--s1'), borderRadius:4, borderSkipped:'start', barPercentage:.85, categoryPercentage:.7, maxBarThickness:14 },
+      { label:'Current value', data: top.map(r=>r.curVal), backgroundColor: css('--s2'), borderRadius:4, borderSkipped:'start', barPercentage:.85, categoryPercentage:.7, maxBarThickness:14 } ]},
+    options:{ indexAxis:'y', maintainAspectRatio:false, interaction:{mode:'index', axis:'y', intersect:false},
+      plugins:{ legend:{ position:'top', align:'start', labels:{ usePointStyle:true, pointStyle:'rectRounded', boxWidth:10, color:B.text2 } },
+        tooltip:{ ...B.tooltip, callbacks:{ title: c => top[c[0].dataIndex].h.company, label: c => ` ${c.dataset.label}: ${fmtRs(c.raw,0)}`, footer: c => { const r = top[c[0].dataIndex]; return `P/L ${fmtC(r.unPL)} (${fmtPct(r.unPct,1)}) · ${r.src}`; } } } },
+      scales:{ x:{ grid:{color:B.grid}, border:{display:false}, ticks:{ maxRotation:0, maxTicksLimit:6, callback: v => fmtC(v).replace('Rs ','') } }, y:{ grid:{display:false}, border:{color:B.grid}, ticks:{color:B.text2} } } } });
+  hbar('cSector', foldOther(groupSum(act,'sector'), 8), css('--s1'));
+  hbar('cHolder', foldOther(groupSum(act,'dematHolder'), 8), css('--s7'));
+  const om = {}; rows(true).filter(r=>r.rem>0).forEach(r => parseOwners(r.h.owner).forEach(o => { om[o.name] = (om[o.name]||0) + r.curVal*o.pct/100; }));
+  hbar('cOwner', foldOther(Object.entries(om).sort((a,b)=>b[1]-a[1]), 8), css('--s3'));
+  const inv = R.filter(r=>r.h.investDate).sort((a,b)=>a.h.investDate<b.h.investDate?-1:1); let cum = 0;
+  const pts = inv.map(r => ({ x: r.h.investDate, y: (cum += r.totalCost), r }));
+  S.charts.cTime = new Chart($('#cTime'), { type:'line', data:{ labels: pts.map(p=>p.x.slice(0,7)), datasets:[{ data: pts.map(p=>p.y), borderColor: css('--brand'), backgroundColor: css('--brand-soft'), fill:true, stepped:'before', borderWidth:2, pointRadius:4, pointHoverRadius:6, pointBackgroundColor: css('--surface'), pointBorderWidth:2 }]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index', intersect:false}, plugins:{ legend:{display:false}, tooltip:{ ...B.tooltip, callbacks:{ title: c => pts[c[0].dataIndex].r.h.company + ' · ' + fmtD(pts[c[0].dataIndex].x), label: c => ` Cumulative ${fmtRs(c.raw,0)}`, afterLabel: c => ` This investment ${fmtRs(pts[c.dataIndex].r.totalCost,0)}` } } },
+      scales:{ y:{ grid:{color:B.grid}, border:{display:false}, ticks:{ callback: v => fmtC(v).replace('Rs ','') } }, x:{ grid:{display:false}, border:{color:B.grid}, ticks:{ maxRotation:0, autoSkip:true, maxTicksLimit:6 } } } } });
+}
+
+/* ---------------- HOLDINGS ---------------- */
+const COLDEF = [
+  ['company','Company',r=>`<div class="co"><b>${esc(r.h.company)}</b><span>${esc(r.h.symbol? r.h.symbol+' · ':'')}${esc(r.h.sector||'—')}</span></div>`, r=>r.h.company.toLowerCase()],
+  ['holder','Demat / Owner',r=>`${esc(r.h.dematHolder||'—')}${r.h.owner?`<span class="sub2">${isJoint(r.h)?`<span class="chip hold" style="padding:0 6px;font-size:10.5px">Joint ×${parseOwners(r.h.owner).length}</span> `:'Owner: '}<span class="owners-cut" title="${esc(fmtOwners(parseOwners(r.h.owner)))}">${esc(S.lens&&isJoint(r.h)?S.lens+' '+(+(r.f*100).toFixed(2))+'%':fmtOwners(parseOwners(r.h.owner)))}</span></span>`:''}`, r=>(r.h.dematHolder||'').toLowerCase()],
+  ['shares','No. of shares',r=>`${fmtQ(r.rem)}<span class="sub2">${r.bonus?fmtQ(r.orig)+' + '+fmtQ(r.bonus)+' bonus':''}${r.exQ?(r.bonus?' · ':'')+fmtQ(r.exQ)+' sold':''}</span>`, r=>r.rem, 'r'],
+  ['cost','Rate',r=>`${nf2.format(r.rate)}${r.bonus?`<span class="sub2">${nf2.format(r.cost)} adj.</span>`:''}`, r=>r.cost, 'r'],
+  ['ltp','LTP / price',r=>`${nf2.format(r.price)}<span class="sub2">${r.src==='LTP' && r.dayPct!=null ? `<span class="${sgn(r.dayPct)}">${fmtPct(r.dayPct)}</span> · LTP` : r.src}</span>`, r=>r.price, 'r'],
+  ['invested','Invested',r=>fmtRs(r.totalCost,0), r=>r.totalCost, 'r'],
+  ['currentValue','Current value',r=>fmtRs(r.curVal,0), r=>r.curVal, 'r'],
+  ['pl','Total return',r=>`<span class="${sgn(r.totPL)}">${fmtRs(r.totPL,0)}</span><span class="sub2 ${sgn(r.retPct)}">${fmtPct(r.retPct,1)}${r.xirr!=null?` · XIRR ${fmtPct(r.xirr*100,1)}`:''}</span>`, r=>r.retPct??-1e9, 'r'],
+  ['lock','Lock-in',r=>`${lockChip(r,r.h)}<span class="sub2">${r.rel?fmtRel(r.h.lockinDate):''}</span>`, r=>r.rem<=0?1e9:(r.locked?r.daysToRelease:-1)],
+  ['status','Status',r=>`${exitChip(r.exitStatus)}`, r=>({Hold:0,'Partial Exit':1,Exit:2})[r.exitStatus]],
+  ['listing','Listing / IPO',r=>`${listChip(r.h.listing)}${r.h.listingDate?`<span class="sub2">${fmtD(r.h.listingDate)}</span>`:''}`, r=>r.h.listing],
+  ['project','Project',r=>projChip(r.h.projectStatus, r.h.progressPct), r=>r.h.projectStatus]
+];
+function filtered(){
+  const f = S.f, q = f.q.trim().toLowerCase();
+  let R = rows().filter(r => {
+    const h = r.h;
+    if (q && ![h.company,h.symbol,h.sector,h.dematHolder,h.owner,h.boid,h.notes].join(' ').toLowerCase().includes(q)) return false;
+    if (f.sector && h.sector!==f.sector) return false;
+    if (f.listing && h.listing!==f.listing) return false;
+    if (f.project && h.projectStatus!==f.project) return false;
+    if (f.exit && r.exitStatus!==f.exit) return false;
+    if (f.holder && h.dematHolder!==f.holder) return false;
+    if (f.joint && (f.joint==='Joint') !== isJoint(h)) return false;
+    if (f.lock==='Locked' && !r.locked) return false;
+    if (f.lock==='Liquid' && (r.locked || r.rem<=0)) return false;
+    return true;
+  });
+  const col = COLDEF.find(c=>c[0]===S.sort.k); if (col) R.sort((a,b)=>{ const x=col[3](a), y=col[3](b); return (x>y?1:x<y?-1:0)*S.sort.d; });
+  return R;
+}
+const uniq = k => [...new Set(S.holdings.map(h=>h[k]).filter(Boolean))].sort();
+function fsel(key, label, opts){ return `<select class="sel ${S.f[key]?'on':''}" data-f="${key}"><option value="">${label}</option>${opts.map(o=>`<option ${S.f[key]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`; }
+function renderHoldings(){
+  const R = filtered(), T = totals(R), any = Object.entries(S.f).some(([k,v])=>v);
+  $('#view').innerHTML = lensNote() + `
+  <div class="toolbar">
+    <label class="search">${IC.search}<input id="q" placeholder="Search company, symbol, holder, BOID…" value="${esc(S.f.q)}"></label>
+    ${fsel('sector','All sectors',uniq('sector'))}
+    ${fsel('exit','Hold / Partial / Exit',['Hold','Partial Exit','Exit'])}
+    ${fsel('lock','Locked / Liquid',['Locked','Liquid'])}
+    ${fsel('listing','Listing / IPO',['Listed','Pipeline','Not Applied'])}
+    ${fsel('project','Project status',['Under Construction','Operational'])}
+    ${fsel('holder','All demat holders',uniq('dematHolder'))}
+    ${fsel('joint','Single / Joint',['Single','Joint'])}
+    ${any?'<button class="btn ghost sm" id="clrF">Clear filters</button>':''}
+    <div style="flex:1"></div>
+    <div class="seg"><button data-lay="table" class="${S.layout==='table'?'on':''}" title="Table">${IC.list.replace('<svg','<svg width="15" height="15"')}</button><button data-lay="cards" class="${S.layout==='cards'?'on':''}" title="Cards">${IC.grid.replace('<svg','<svg width="15" height="15"')}</button></div>
+    <button class="btn sm" id="expCsv">${IC.dl}Export CSV</button>
+  </div>
+  <div class="grid kpis" style="margin-bottom:14px;grid-template-columns:repeat(6,minmax(0,1fr))">
+    ${miniStat('Showing', R.length+' of '+S.holdings.length)}${miniStat('Shares held', fmtQ(T.rem))}${miniStat('Invested', fmtC(T.invested))}${miniStat('Current value', fmtC(T.cur))}
+    ${miniStat('Locked · Liquid', `<span style="font-size:13.5px">${fmtC(T.lockedVal)} · ${fmtC(T.liquidVal)}</span>`)}${miniStat('Total return', `<span class="${sgn(T.tot)}">${fmtC(T.tot)} · ${fmtPct(T.retPct,1)}</span>`)}
+  </div>
+  ${!R.length ? `<div class="card empty">${IC.box}No holdings match these filters.</div>` : S.layout==='table' ? `
+  <div class="tbl-wrap"><table>
+    <thead><tr>${COLDEF.map(c=>`<th class="${c[4]||''} ${S.sort.k===c[0]?'sorted':''}" data-sort="${c[0]}">${c[1]}<span class="ar">${S.sort.k===c[0]?(S.sort.d>0?'▲':'▼'):'↕'}</span></th>`).join('')}</tr></thead>
+    <tbody>${R.map(r=>`<tr data-id="${r.h.id}">${COLDEF.map(c=>`<td class="${c[4]||''} num">${c[2](r)}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr><td>Total (${R.length})</td><td></td><td class="r num">${fmtQ(T.rem)}</td><td></td><td></td><td class="r num">${fmtRs(T.invested,0)}</td><td class="r num">${fmtRs(T.cur,0)}</td><td class="r num ${sgn(T.tot)}">${fmtRs(T.tot,0)}<span class="sub2">${fmtPct(T.retPct,1)}</span></td><td colspan="4"></td></tr></tfoot>
+  </table></div>` : `<div class="cards-view">${R.map(r=>`
+    <div class="card hcard" data-id="${r.h.id}"><div class="top2"><div style="display:flex;gap:10px;align-items:center"><div class="av" style="width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;background:${avColor(r.h.company)}">${esc(initials(r.h.symbol||r.h.company))}</div><div><div class="nm">${esc(r.h.company)}</div><div class="sy">${esc(r.h.symbol||r.h.listing)} · ${esc(r.h.sector||'—')}</div></div></div>${exitChip(r.exitStatus)}</div>
+      <div class="mv"><div><span>Current value</span><b class="num">${fmtC(r.curVal)}</b></div><div><span>Total return</span><b class="num ${sgn(r.totPL)}">${fmtPct(r.retPct,1)}</b></div><div><span>Shares held</span><b class="num">${fmtQ(r.rem)}</b></div><div><span>${r.src==='LTP'?'LTP':r.src}</span><b class="num">${nf2.format(r.price)}</b></div></div>
+      <div class="chips">${lockChip(r,r.h)}${listChip(r.h.listing)}${projChip(r.h.projectStatus, r.h.progressPct)}</div></div>`).join('')}</div>`}`;
+  const q = $('#q'); q.oninput = debounce(e => { S.f.q = e.target.value; renderHoldings(); const n=$('#q'); n.focus(); n.setSelectionRange(n.value.length,n.value.length); }, 220);
+  $$('[data-f]').forEach(s => s.onchange = () => { S.f[s.dataset.f] = s.value; renderHoldings(); });
+  $$('[data-sort]').forEach(th => th.onclick = () => { const k=th.dataset.sort; S.sort = {k, d: S.sort.k===k ? -S.sort.d : (['company','holder','listing','project','status','lock'].includes(k)?1:-1)}; renderHoldings(); });
+  $$('[data-id]').forEach(tr => tr.onclick = () => openDrawer(tr.dataset.id));
+  $$('[data-lay]').forEach(b => b.onclick = () => { S.layout=b.dataset.lay; try{localStorage.setItem('psp_layout',S.layout)}catch(e){} renderHoldings(); });
+  $('#expCsv').onclick = () => exportCsv(R);
+  const c = $('#clrF'); if (c) c.onclick = () => { S.f = {q:'',sector:'',listing:'',project:'',exit:'',lock:'',holder:'',joint:''}; renderHoldings(); };
+}
+const miniStat = (l,v) => `<div class="card" style="padding:12px 14px"><div class="hint">${l}</div><div class="num" style="font-weight:700;font-size:15px;margin-top:4px">${v}</div></div>`;
+function debounce(fn, ms){ let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+/* ---------------- DRAWER (detail) ---------------- */
+function openDrawer(id){
+  const h = S.holdings.find(x=>x.id===id); if (!h) return; const r = calc(h);
+  const kv = (l,v) => `<div><span>${l}</span><b>${v}</b></div>`;
+  const tl = [];
+  if (h.investDate) tl.push([h.investDate, 'Invested', `${fmtQ(r.orig)} shares @ Rs ${nf2.format(r.rate)} = ${fmtRs(r.totalCost,0)}`]);
+  if (h.listingDate) tl.push([h.listingDate, h.listingDate>todayISO()?'Listing (upcoming)':'Listed on NEPSE', '']);
+  if (r.rel) tl.push([r.rel.d, r.locked?'Lock-in release (upcoming)':'Lock-in released', r.rel.est?'Expected in '+r.rel.y:(r.locked?`in ${r.daysToRelease} days`:'Promoter shares free to trade')]);
+  if (r.exQ) tl.push([h.exitDate||todayISO(), r.exitStatus==='Exit'?'Exited':'Partial exit', `${fmtQ(r.exQ)} shares @ Rs ${nf2.format(r.exP)} = ${fmtRs(r.proceeds,0)}${h.exitDate?'':' (date not recorded)'}`]);
+  tl.sort((a,b)=>a[0]<b[0]?-1:1);
+  $('#drawer').innerHTML = `
+  <div class="dr-head"><div class="row"><div class="av" style="width:46px;height:46px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;background:${avColor(h.company)}">${esc(initials(h.symbol||h.company))}</div>
+    <div style="flex:1;min-width:0"><h2>${esc(h.company)}</h2><div class="hint" style="margin-top:3px">${esc(h.symbol||h.listing)} · ${esc(h.sector||'—')} · ${esc(h.id)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${exitChip(r.exitStatus)}${lockChip(r,h)}${listChip(h.listing)}${projChip(h.projectStatus, h.progressPct)}</div></div>
+    <button class="icon-btn" onclick="closeAll()">${IC.x}</button></div></div>
+  <div class="dr-body">
+    <div class="mgrid">
+      <div class="mbox"><span>Current value</span><b class="num">${fmtC(r.curVal)}</b><small>${fmtQ(r.rem)} sh @ ${nf2.format(r.price)} (${r.src})</small></div>
+      <div class="mbox"><span>Total return</span><b class="num ${sgn(r.totPL)}">${fmtC(r.totPL)}</b><small class="${sgn(r.retPct)}">${fmtPct(r.retPct,2)} on cost</small></div>
+      <div class="mbox"><span>XIRR (annualised)</span><b class="num ${sgn(r.xirr)}">${r.xirr==null?'—':fmtPct(r.xirr*100,1)}</b><small>Held ${dur(r.heldDays)}</small></div>
+      <div class="mbox"><span>Unrealized P/L</span><b class="num ${sgn(r.unPL)}">${fmtC(r.unPL)}</b><small>${fmtPct(r.unPct,1)}</small></div>
+      <div class="mbox"><span>Realized P/L</span><b class="num ${sgn(r.realPL)}">${fmtC(r.realPL)}</b><small>${r.exQ?fmtRs(r.proceeds,0)+' proceeds':'No exits yet'}</small></div>
+      <div class="mbox"><span>${r.locked?'Locked value':'Liquid value'}</span><b class="num">${fmtC(r.locked?r.lockedVal:r.liquidVal)}</b><small>${fmtQ(r.locked?r.lockedQty:r.liquidQty)} shares ${r.locked?'locked':'liquid'}</small></div>
+    </div>
+    ${r.src==='LTP' && r.px ? `<div class="card" style="margin-top:12px;padding:12px 14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div><span class="hint">LTP${r.px.source?' · '+esc(r.px.source.replace(/ via.*/,'')):''}</span><div style="font-size:18px;font-weight:750" class="num">Rs ${nf2.format(r.px.ltp)} ${r.px.pct!=null?delta(r.px.pct, fmtPct(r.px.pct)):''}</div></div><div class="hint">Prev close Rs ${nf2.format(r.px.prevClose||0)}<br>${esc(r.px.businessDate||'')} · fetched ${esc(r.px.fetchedAt||'')}${r.px.source?' · '+esc(r.px.source):''}</div><div class="hint">Day P/L<br><b class="num ${sgn(r.dayChg)}">${fmtRs(r.dayChg,0)}</b></div></div>` : (h.listing==='Listed' && !N(h.manualLtp) ? `<div class="banner" style="margin-top:12px">${h.symbol?`No nepalstock.com LTP yet for <b>${esc(h.symbol)}</b>. Refresh LTP or check the symbol.`:'Add the NEPSE symbol to pull LTP from nepalstock.com.'} Valued at ${r.src.toLowerCase()} meanwhile.</div>` : '')}
+    <div class="sec-t">Investment details</div>
+    <div class="kv">${kv('No. of shares', fmtQ(r.orig))}${kv('Bonus shares', fmtQ(r.bonus))}${kv('Shares held now', fmtQ(r.rem))}${kv('Rate (cost per share)', 'Rs '+nf2.format(r.rate)+(r.bonus?` · adj. Rs ${nf2.format(r.cost)}`:''))}${kv('Investment', fmtRs(r.totalCost,0))}${kv('Date of investment', fmtD(h.investDate))}${kv('Demat account holder', esc(h.dematHolder||'—'))}${kv('Ownership (beneficial owner)', esc(h.owner?fmtOwners(parseOwners(h.owner)):'—'))}${kv('BOID / Demat no.', esc(h.boid||'—'))}${kv('Lock-in release', fmtRel(h.lockinDate))}${kv('Lock-in status', r.rem<=0?'—':r.locked?`Locked${r.rel.est?' (expected '+r.rel.y+')':' · '+r.daysToRelease+' days left'}`:'Released / liquid')}${kv('Locked / liquid shares', fmtQ(r.lockedQty)+' / '+fmtQ(r.liquidQty))}</div>
+    <div class="sec-t">Hold / Exit</div>
+    <div class="kv">${kv('Status', r.exitStatus+(r.exitStatus!==r.derived?` <span class="hint">(${fmtQ(r.rem)} still held)</span>`:''))}${kv('Sold qty', fmtQ(r.exQ))}${kv('Sold rate (avg)', r.exQ?'Rs '+nf2.format(r.exP):'—')}${kv('Date of exit', fmtD(h.exitDate))}${kv('Realised (sale proceeds)', r.exQ?fmtRs(r.proceeds,0):'—')}${kv('Realised gain', r.exQ?`<span class="${sgn(r.realPL)}">${fmtRs(r.realPL,0)}</span>`:'—')}</div>
+    <div class="sec-t">Company &amp; valuation</div>
+    <div class="kv">${kv('Sector', esc(h.sector||'—'))}${kv('Listing / IPO status', esc(h.listing))}${kv('Listing date', fmtD(h.listingDate))}${kv('NEPSE symbol', esc(h.symbol||'—'))}${kv('Project status', esc(h.projectStatus)+(N(h.progressPct)&&h.projectStatus==='Under Construction'?' · '+N(h.progressPct)+'% complete':''))}${kv('Current / expected rate', N(h.fairValue)?'Rs '+nf2.format(N(h.fairValue)):'—')}${kv('Price used for valuation', 'Rs '+nf2.format(r.price)+' · '+r.src)}${kv('Manual LTP override', N(h.manualLtp)?'Rs '+nf2.format(N(h.manualLtp)):'—')}</div>
+    ${ownSplitHtml(h, r)}
+    ${tl.length?`<div class="sec-t">Timeline</div><div class="tl">${tl.map(t=>`<div class="tl-i ${t[0]>todayISO()?'fut':''}"><b>${t[1]}</b><span>${fmtD(t[0])}${t[2]?' · '+t[2]:''}</span></div>`).join('')}</div>`:''}
+    ${h.notes?`<div class="sec-t">Notes</div><div class="card" style="white-space:pre-wrap;font-size:13px">${esc(h.notes)}</div>`:''}
+  </div>
+  <div class="dr-foot"><button class="btn danger" onclick="askDelete('${h.id}')">${IC.trash}Delete</button><div style="flex:1"></div>${isJoint(h)?`<button class="btn" onclick="openSegregate('${h.id}')">${IC.layers}Segregate</button>`:''}${r.rem>0?`<button class="btn" onclick="openExit('${h.id}')">${IC.exit}Record exit</button>`:''}<button class="btn pri" onclick="openForm('${h.id}')">${IC.edit}Edit</button></div>`;
+  $('#drawer').classList.add('on'); $('#scrim').classList.add('on');
+}
+function ownSplitHtml(h, r){
+  const os = parseOwners(h.owner); if (os.length < 2) return '';
+  const sh = allocate(r.orig, os.map(o=>o.pct)), bo = allocate(r.bonus, os.map(o=>o.pct)), sq = allocate(r.exQ, os.map(o=>o.pct));
+  const tot = os.reduce((a,o)=>a+o.pct,0);
+  return `<div class="sec-t">Ownership split · joint investment</div>
+  <div class="tbl-wrap" style="max-height:none"><table><thead><tr><th style="cursor:default">Owner</th><th class="r" style="cursor:default">%</th><th class="r" style="cursor:default">Shares</th><th class="r" style="cursor:default">Investment</th><th class="r" style="cursor:default">Current value</th><th class="r" style="cursor:default">Total return</th></tr></thead><tbody>
+  ${os.map((o,i)=>{ const f=o.pct/100; return `<tr style="cursor:default${S.lens&&S.lens.toLowerCase()===o.name.toLowerCase()?';background:var(--brand-soft)':''}"><td><b>${esc(o.name)}</b></td><td class="r num">${+o.pct.toFixed(2)}%</td><td class="r num">${fmtQ(sh[i]+bo[i]-sq[i])}${bo[i]?`<span class="sub2">${fmtQ(sh[i])} + ${fmtQ(bo[i])} bonus</span>`:''}</td><td class="r num">${fmtRs(r.totalCost*f,0)}</td><td class="r num">${fmtRs(r.curVal*f,0)}</td><td class="r num ${sgn(r.totPL)}">${fmtRs(r.totPL*f,0)}</td></tr>`; }).join('')}
+  </tbody><tfoot><tr><td>Total</td><td class="r num ${Math.abs(tot-100)>0.01?'neg':''}">${+tot.toFixed(2)}%</td><td class="r num">${fmtQ(r.rem)}</td><td class="r num">${fmtRs(r.totalCost,0)}</td><td class="r num">${fmtRs(r.curVal,0)}</td><td class="r num">${fmtRs(r.totPL,0)}</td></tr></tfoot></table></div>
+  <div class="hint" style="margin-top:6px">Held jointly in ${esc(h.dematHolder||'one demat')}. Use <b>Segregate</b> when the shares are split into each owner's own demat.</div>`;
+}
+function openSegregate(id){
+  const h = S.holdings.find(x=>x.id===id), r = calc(h), os = parseOwners(h.owner), pc = os.map(o=>o.pct);
+  const tot = pc.reduce((a,b)=>a+b,0);
+  if (Math.abs(tot-100) > 0.01) { toast('Ownership % must total 100 before segregating (now '+(+tot.toFixed(2))+'%)','err'); return; }
+  const sh = allocate(h.shares, pc), bo = allocate(h.bonusShares, pc), sq = allocate(h.exitedQty, pc);
+  smallModal(`Segregate · ${esc(h.company)}`, `
+    <p class="hint" style="margin-top:0">Splits this joint holding into ${os.length} separate holdings, one per owner, with the same rate, dates, lock-in and status. Shares are split by ownership % (whole shares; rounding goes to the largest fractions). The joint record is replaced.</p>
+    <div class="tbl-wrap" style="max-height:none"><table><thead><tr><th style="cursor:default">Owner</th><th class="r" style="cursor:default">Shares</th><th class="r" style="cursor:default">Bonus</th><th class="r" style="cursor:default">Sold</th><th style="cursor:default">New demat holder</th></tr></thead><tbody>
+    ${os.map((o,i)=>`<tr style="cursor:default"><td><b>${esc(o.name)}</b><span class="sub2">${+o.pct.toFixed(2)}%</span></td><td class="r num">${fmtQ(sh[i])}</td><td class="r num">${fmtQ(bo[i])}</td><td class="r num">${fmtQ(sq[i])}</td><td><input class="segDm" data-i="${i}" value="${esc(o.name)}" style="width:130px;border:1px solid var(--border-2);border-radius:8px;padding:6px 8px;background:var(--surface-2)"></td></tr>`).join('')}
+    </tbody></table></div>`, 'Segregate', async () => {
+      const dm = $$('.segDm').map(x=>x.value.trim());
+      const stamp = todayISO();
+      const parts = os.map((o,i) => Object.assign({}, h, { id:'', owner:o.name, dematHolder: dm[i] || o.name, boid:'', shares: sh[i], bonusShares: bo[i] || '', exitedQty: sq[i] || '',
+        exitStatus: !sq[i] ? 'Hold' : (sq[i] >= sh[i]+bo[i] ? 'Exit' : 'Partial Exit'),
+        notes: ((h.notes ? h.notes+'\n' : '') + `Segregated ${stamp} from joint holding ${h.id} (${fmtOwners(os)}; demat ${h.dematHolder||'—'})`) })).filter(p => N(p.shares) > 0);
+      const res = await call('api_segregateHolding', id, parts);
+      applyData(res.data); closeAll(); toast(`Segregated into ${parts.length} holdings`,'ok'); render(); return true;
+    });
+  $('#smallModal').style.width = 'min(640px,96vw)';
+}
+function closeAll(){ ['#drawer','#formModal','#smallModal'].forEach(s=>$(s).classList.remove('on')); $('#scrim').classList.remove('on'); }
+function closeTop(){ if ($('#smallModal').classList.contains('on')) { $('#smallModal').classList.remove('on'); if(!$('#drawer').classList.contains('on') && !$('#formModal').classList.contains('on')) $('#scrim').classList.remove('on'); return; } if ($('#formModal').classList.contains('on')) { $('#formModal').classList.remove('on'); if(!$('#drawer').classList.contains('on')) $('#scrim').classList.remove('on'); return; } closeAll(); }
+
+/* ---------------- FORM (add / edit) ---------------- */
+function openForm(id){
+  const h = id ? Object.assign({}, S.holdings.find(x=>x.id===id)) : { listing:'Not Applied', projectStatus:'Operational', exitStatus:'Hold', investDate: todayISO() };
+  const v = k => esc(h[k] ?? '');
+  const sectors = [...new Set(SECTORS.concat(uniq('sector'), S.companies.map(c=>c.sector).filter(Boolean)))].sort();
+  const holders = uniq('dematHolder');
+  $('#formModal').innerHTML = `
+  <div class="m-head"><h2>${id?'Edit investment':'New promoter investment'}</h2><button class="icon-btn" onclick="closeTop()">${IC.x}</button></div>
+  <form class="m-body" id="hf" autocomplete="off">
+    <input type="hidden" name="id" value="${v('id')}">
+    <div class="preview" id="pv"></div>
+    <div class="fsec"><h4><i>1</i>Company</h4><div class="fg">
+      <div class="f c2"><label>Investment company <em>*</em></label><input name="company" value="${v('company')}" required placeholder="e.g. ABC Hydropower Ltd"></div>
+      <div class="f"><label>Sector</label><input name="sector" list="dlSec" value="${v('sector')}" placeholder="Pick or type"></div>
+      <div class="f"><label>Listing / IPO status</label><select name="listing">${['Listed','Pipeline','Not Applied'].map(o=>`<option value="${o}" ${h.listing===o?'selected':''}>${o==='Pipeline'?'IPO Pipeline':o}</option>`).join('')}</select></div>
+      <div class="f"><label>NEPSE symbol</label><input name="symbol" list="dlSym" value="${v('symbol')}" placeholder="e.g. ABCH"><span class="help" id="symHelp">Needed to fetch LTP when listed</span></div>
+      <div class="f"><label>Listing date</label><input name="listingDate" type="date" value="${v('listingDate')}"></div>
+      <div class="f"><label>Current status of project</label><select name="projectStatus"><option ${h.projectStatus==='Operational'?'selected':''}>Operational</option><option ${h.projectStatus==='Under Construction'?'selected':''}>Under Construction</option></select></div>
+      <div class="f" id="pgWrap"><label>Construction progress %</label><input name="progressPct" type="number" min="0" max="100" step="1" value="${v('progressPct')}"></div>
+    </div></div>
+    <div class="fsec"><h4><i>2</i>Holding</h4><div class="fg">
+      <div class="f"><label>No. of shares <em>*</em></label><input name="shares" type="number" min="0" step="1" value="${v('shares')}" required></div>
+      <div class="f"><label>Rate / cost per share (Rs) <em>*</em></label><input name="costPerShare" type="number" min="0" step="0.01" value="${v('costPerShare')}" required></div>
+      <div class="f"><label>Bonus shares</label><input name="bonusShares" type="number" min="0" step="1" value="${v('bonusShares')}"><span class="help">Cost is spread over shares + bonus</span></div>
+      <div class="f"><label>Demat account holder</label><input name="dematHolder" list="dlHold" value="${v('dematHolder')}" placeholder="whose demat holds the shares"></div>
+      <div class="f c3" id="ownBox"><label>Ownership (beneficial owner)</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="seg" id="ownSeg"><button type="button" data-own="single">Single owner</button><button type="button" data-own="joint">Joint (family / friends)</button></div>
+          <input id="ownSingle" list="dlOwn" placeholder="e.g. Self" style="flex:1;min-width:160px"></div>
+        <div id="ownJoint" style="display:none;margin-top:10px">
+          <div id="ownRows" style="display:flex;flex-direction:column;gap:6px"></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="ownAdd">+ Add owner</button><button type="button" class="btn sm" id="ownEq">Split equally</button><span class="help" id="ownTot" style="margin-left:auto"></span></div>
+        </div>
+        <input type="hidden" name="owner" value="${v('owner')}"></div>
+      <div class="f"><label>BOID / Demat no.</label><input name="boid" value="${v('boid')}" placeholder="optional"></div>
+      <div class="f"><label>Date of investment</label><input name="investDate" type="date" value="${v('investDate')}"></div>
+      <div class="f c2"><label>Promoter lock-in release</label>
+        <div style="display:flex;gap:8px;align-items:center"><div class="seg" id="lkSeg"><button type="button" data-lk="date">Exact date</button><button type="button" data-lk="year">Expected year</button></div>
+        <input id="lkDate" type="date" style="flex:1"><input id="lkYear" type="number" min="2000" max="2100" placeholder="e.g. 2030" style="flex:1"></div>
+        <input type="hidden" name="lockinDate" value="${v('lockinDate')}"><span class="help" id="lockHelp"></span></div>
+    </div></div>
+    <div class="fsec"><h4><i>3</i>Hold / Partial Exit / Exit</h4>
+      <div class="seg" id="exSeg" style="margin-bottom:12px">${['Hold','Partial Exit','Exit'].map(s=>`<button type="button" data-ex="${s}" class="${(h.exitStatus||'Hold')===s?'on':''}">${s}</button>`).join('')}</div>
+      <input type="hidden" name="exitStatus" value="${esc(h.exitStatus||'Hold')}">
+      <div class="fg" id="exFields">
+        <div class="f"><label>Sold qty</label><input name="exitedQty" type="number" min="0" step="1" value="${v('exitedQty')}"></div>
+        <div class="f"><label>Sold rate (avg, Rs)</label><input name="exitPrice" type="number" min="0" step="0.01" value="${v('exitPrice')}"></div>
+        <div class="f"><label>Date of exit</label><input name="exitDate" type="date" value="${v('exitDate')}"></div>
+      </div></div>
+    <div class="fsec"><h4><i>4</i>Valuation &amp; notes</h4><div class="fg">
+      <div class="f"><label>Current / expected rate (Rs)</label><input name="fairValue" type="number" min="0" step="0.01" value="${v('fairValue')}"><span class="help">Values unlisted shares (and listed ones until LTP arrives)</span></div>
+      <div class="f"><label>Manual LTP override</label><input name="manualLtp" type="number" min="0" step="0.01" value="${v('manualLtp')}"><span class="help">Blank = use nepalstock.com LTP</span></div>
+      <div class="f"><label>&nbsp;</label><span class="help" id="pxHelp"></span></div>
+      <div class="f c3"><label>Notes</label><textarea name="notes" rows="2">${v('notes')}</textarea></div>
+    </div></div>
+    <datalist id="dlSym">${S.companies.map(c=>`<option value="${esc(c.symbol)}">${esc(c.name)}</option>`).join('')}</datalist>
+    <datalist id="dlSec">${sectors.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
+    <datalist id="dlHold">${holders.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
+    <datalist id="dlOwn">${allOwners().map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
+  </form>
+  <div class="m-foot"><span class="hint" id="fErr" style="color:var(--bad);margin-right:auto"></span><button class="btn" onclick="closeTop()">Cancel</button><button class="btn pri" id="saveBtn">${id?'Save changes':'Add investment'}</button></div>`;
+  $('#formModal').classList.add('on'); $('#scrim').classList.add('on');
+  const F = $('#hf'), el = n => F.elements[n];
+  const totSh = () => N(el('shares').value) + N(el('bonusShares').value);
+  const setEx = (s, init) => { el('exitStatus').value = s; $$('#exSeg button').forEach(b=>b.classList.toggle('on', b.dataset.ex===s)); $('#exFields').style.opacity = s==='Hold' ? .45 : 1;
+    if (!init && s==='Exit' && totSh() && !N(el('exitedQty').value)) el('exitedQty').value = totSh();
+    if (!init && s==='Hold') { el('exitedQty').value=''; el('exitPrice').value=''; el('exitDate').value=''; } update(); };
+  // lock-in: exact date or expected year (stored as 'YYYYE')
+  const lk = relInfo(el('lockinDate').value); let lkMode = lk && lk.est ? 'year' : 'date';
+  if (lk) { if (lk.est) $('#lkYear').value = lk.y; else $('#lkDate').value = lk.d; }
+  const setLk = m => { lkMode = m; $$('#lkSeg button').forEach(b=>b.classList.toggle('on', b.dataset.lk===m)); $('#lkDate').style.display = m==='date'?'':'none'; $('#lkYear').style.display = m==='year'?'':'none'; syncLk(); };
+  const syncLk = () => { el('lockinDate').value = lkMode==='date' ? $('#lkDate').value : ($('#lkYear').value ? $('#lkYear').value+'E' : ''); update(); };
+  $$('#lkSeg button').forEach(b => b.onclick = () => setLk(b.dataset.lk)); $('#lkDate').oninput = syncLk; $('#lkYear').oninput = syncLk;
+  // ownership: single name, or joint list "Name pct, Name pct"
+  let ownMode = isJoint(h) ? 'joint' : 'single';
+  const ownRowHtml = (n, pc) => `<div class="ownRow" style="display:grid;grid-template-columns:1fr 90px 170px 32px;gap:6px;align-items:center"><input class="oN" list="dlOwn" placeholder="Owner name" value="${esc(n||'')}" style="border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2)"><input class="oP" type="number" min="0" max="100" step="0.01" placeholder="%" value="${pc==null?'':+(+pc).toFixed(4)}" style="border:1px solid var(--border-2);border-radius:9px;padding:8px 10px;background:var(--surface-2)"><span class="help oS num" style="text-align:right;white-space:nowrap"></span><button type="button" class="icon-btn oX" style="width:32px;height:32px">${IC.x}</button></div>`;
+  const ownRead = () => $$('.ownRow').map(rw => ({name: $('.oN',rw).value.trim(), pct: $('.oP',rw).value===''?null:N($('.oP',rw).value)})).filter(o=>o.name);
+  const ownSync = () => {
+    if (ownMode==='single') { el('owner').value = $('#ownSingle').value.trim(); }
+    else { const l = ownRead(); el('owner').value = l.map(o => o.pct==null ? o.name : `${o.name} ${o.pct}%`).join(', ');
+      const pl = parseOwners(el('owner').value), tot = pl.reduce((a,o)=>a+o.pct,0), sh = N(el('shares').value);
+      $('#ownTot').innerHTML = `Total <b class="${Math.abs(tot-100)>0.01?'neg':'pos'}">${+tot.toFixed(2)}%</b>${Math.abs(tot-100)>0.01?' (must be 100%)':''}`;
+      const alloc = allocate(sh, $$('.ownRow').map(rw => { const nm=$('.oN',rw).value.trim(); const o = pl.find(x=>x.name===nm); return o?o.pct:0; }));
+      $$('.ownRow').forEach((rw,i) => $('.oS',rw).textContent = sh ? fmtQ(alloc[i])+' sh · '+fmtRs(alloc[i]*N(el('costPerShare').value),0) : ''); }
+  };
+  const ownBind = () => { $$('.ownRow input').forEach(x=>x.oninput=ownSync); $$('.oX').forEach(b=>b.onclick=()=>{ b.closest('.ownRow').remove(); ownSync(); }); };
+  const setOwn = m => { ownMode = m; $$('#ownSeg button').forEach(b=>b.classList.toggle('on', b.dataset.own===m)); $('#ownJoint').style.display = m==='joint'?'':'none'; $('#ownSingle').style.display = m==='single'?'':'none';
+    if (m==='joint' && !$$('.ownRow').length) { const cur = $('#ownSingle').value.trim(); $('#ownRows').innerHTML = ownRowHtml(cur,50) + ownRowHtml('',50); ownBind(); }
+    if (m==='single' && !$('#ownSingle').value) { const l = ownRead(); $('#ownSingle').value = l[0] ? l[0].name : ''; }
+    ownSync(); };
+  { const pl = parseOwners(h.owner); if (pl.length>1) { $('#ownRows').innerHTML = pl.map(o=>ownRowHtml(o.name,o.pct)).join(''); ownBind(); } else $('#ownSingle').value = pl[0] ? pl[0].name : ''; }
+  $$('#ownSeg button').forEach(b => b.onclick = () => setOwn(b.dataset.own));
+  $('#ownSingle').oninput = ownSync;
+  $('#ownAdd').onclick = () => { $('#ownRows').insertAdjacentHTML('beforeend', ownRowHtml('', null)); ownBind(); ownSync(); };
+  $('#ownEq').onclick = () => { const rs = $$('.ownRow'); rs.forEach(rw => $('.oP',rw).value = +(100/rs.length).toFixed(4)); ownSync(); };
+  el('shares').addEventListener('input', ownSync); el('costPerShare').addEventListener('input', ownSync);
+  setOwn(ownMode);
+  const pgSync = () => { $('#pgWrap').style.opacity = el('projectStatus').value==='Under Construction' ? 1 : .45; };
+  el('projectStatus').onchange = pgSync; pgSync();
+  $$('#exSeg button').forEach(b => b.onclick = () => setEx(b.dataset.ex));
+  el('exitedQty').oninput = () => { const q=N(el('exitedQty').value), sh=totSh(); const s = q<=0?'Hold':q>=sh?'Exit':'Partial Exit'; el('exitStatus').value=s; $$('#exSeg button').forEach(b=>b.classList.toggle('on', b.dataset.ex===s)); $('#exFields').style.opacity = 1; update(); };
+  el('symbol').oninput = () => { el('symbol').value = el('symbol').value.toUpperCase(); const c = S.companies.find(c=>c.symbol===el('symbol').value);
+    if (c) { if (!el('company').value) el('company').value = c.name; if (!el('sector').value && c.sector) el('sector').value = c.sector; el('listing').value='Listed'; }
+    const p = S.prices[el('symbol').value]; $('#symHelp').innerHTML = p ? `<span class="pos">LTP Rs ${nf2.format(p.ltp)} found</span>` : (el('symbol').value ? 'No LTP yet for this symbol' : 'Needed to fetch LTP when listed'); update(); };
+  el('company').addEventListener('change', () => { if (el('symbol').value) return; const m = matchCompany(el('company').value); if (m) { el('symbol').value = m.symbol; if (!el('sector').value && m.sector) el('sector').value = m.sector; el('symbol').oninput(); } });
+  F.oninput = debounce(update, 120);
+  function read(){ const o = {}; [...F.elements].forEach(e => { if (e.name) o[e.name] = e.value; }); o.symbol = (o.symbol||'').toUpperCase().trim(); return o; }
+  function update(){
+    const o = read(), r = calc(o);
+    const lh = $('#lockHelp'), ri = relInfo(o.lockinDate); lh.textContent = ri ? (ri.d>todayISO() ? (ri.est ? `Locked · expected release in ${ri.y}` : `Locked · ${daysBetween(todayISO(),ri.d)} days left`) : 'Already released (liquid)') : 'Blank = no lock-in (liquid)';
+    $('#pxHelp').textContent = `Valued at Rs ${nf2.format(r.price)} (${r.src})`;
+    $('#pv').innerHTML = `<div><span>Investment</span><b class="num">${fmtRs(r.totalCost,0)}</b></div><div><span>Shares held${r.bonus?' (incl. bonus)':''}</span><b class="num">${fmtQ(r.rem)}</b></div><div><span>Current value (${r.src})</span><b class="num">${fmtRs(r.curVal,0)}</b></div><div><span>Total return</span><b class="num ${sgn(r.totPL)}">${fmtRs(r.totPL,0)} · ${fmtPct(r.retPct,1)}</b></div>`;
+  }
+  setLk(lkMode); setEx(el('exitStatus').value, true); update();
+  $('#saveBtn').onclick = async () => {
+    const o = read(); $$('.f.err').forEach(x=>x.classList.remove('err')); let bad = '';
+    if (!o.company.trim()) { el('company').parentNode.classList.add('err'); bad='Company name is required'; }
+    if (!(N(o.shares)>0)) { el('shares').parentNode.classList.add('err'); bad = bad || 'No. of shares must be > 0'; }
+    if (isJoint(o)) { const tot = parseOwners(o.owner).reduce((a,x)=>a+x.pct,0); if (Math.abs(tot-100)>0.01) { $('#ownBox').classList.add('err'); bad = bad || `Joint ownership must total 100% (now ${+tot.toFixed(2)}%)`; } }
+    if (N(o.exitedQty) > N(o.shares)+N(o.bonusShares)) { el('exitedQty').parentNode.classList.add('err'); bad = bad || 'Sold qty cannot exceed shares + bonus'; }
+    if (o.exitStatus!=='Hold' && N(o.exitedQty)>0 && !(N(o.exitPrice)>0)) { el('exitPrice').parentNode.classList.add('err'); bad = bad || 'Enter the exit price'; }
+    if (bad) { $('#fErr').style.color='var(--bad)'; $('#fErr').textContent = bad; return; }
+    if (o.listing==='Listed' && !o.symbol && !$('#fErr').dataset.warned) { $('#fErr').dataset.warned = 1; $('#fErr').style.color='var(--warn)'; $('#fErr').textContent = 'Tip: add the NEPSE symbol so LTP can be fetched. Click save again to continue without it.'; return; }
+    const b = $('#saveBtn'); b.disabled = true; b.textContent = 'Saving…';
+    try { const res = await call('api_saveHolding', o); applyData(res.data); toast(id?'Investment updated':'Investment added','ok'); closeAll(); if (id) openDrawer(id); render(); }
+    catch(e){ $('#fErr').textContent = e.message; b.disabled=false; b.textContent = id?'Save changes':'Add investment'; }
+  };
+}
+
+/* ---------------- record exit ---------------- */
+function openExit(id){
+  const h = S.holdings.find(x=>x.id===id), r = calc(h);
+  smallModal(`Record exit · ${esc(h.symbol||h.company)}`, `
+    <p class="hint" style="margin-top:0">Adds a sale to this holding. Exit price is kept as a weighted average across all exits.</p>
+    <div class="fg" style="grid-template-columns:1fr 1fr">
+      <div class="f"><label>Qty sold (max ${fmtQ(r.rem)})</label><input id="xq" type="number" min="1" max="${r.rem}" value="${r.rem}"></div>
+      <div class="f"><label>Sale price (Rs)</label><input id="xp" type="number" step="0.01" value="${r.src==='LTP'?r.price:''}"></div>
+      <div class="f c3"><label>Date of exit</label><input id="xd" type="date" value="${todayISO()}"></div>
+    </div><div class="hint" id="xpv" style="margin-top:12px"></div>`,
+    'Save exit', async () => {
+      const q = Math.min(N($('#xq').value), r.rem), p = N($('#xp').value), d = $('#xd').value;
+      if (!(q>0) || !(p>0)) { toast('Enter qty and price','err'); return false; }
+      const nq = r.exQ + q, np = (r.exQ*r.exP + q*p)/nq;
+      const res = await call('api_saveHolding', Object.assign({}, h, { exitedQty:nq, exitPrice:+np.toFixed(4), exitDate:d, exitStatus: nq>=r.shares?'Exit':'Partial Exit' }));
+      applyData(res.data); toast(`Exit recorded · ${nq>=r.shares?'Fully exited':'Partial exit'}`,'ok'); render(); openDrawer(id); return true;
+    });
+  const upd = () => { const q=N($('#xq').value), p=N($('#xp').value); $('#xpv').innerHTML = q&&p ? `Proceeds <b>${fmtRs(q*p,0)}</b> · gain <b class="${sgn(p-r.cost)}">${fmtRs(q*(p-r.cost),0)}</b> · status after: <b>${r.exQ+q>=r.shares?'Exit':'Partial Exit'}</b>` : ''; };
+  ['#xq','#xp'].forEach(s=>$(s).oninput=upd); upd();
+}
+function smallModal(title, body, okLabel, onOk, danger){
+  $('#smallModal').style.width = '';
+  $('#smallModal').innerHTML = `<div class="m-head"><h2>${title}</h2><button class="icon-btn" onclick="closeTop()">${IC.x}</button></div><div class="m-body">${body}</div><div class="m-foot"><button class="btn" onclick="closeTop()">Cancel</button><button class="btn ${danger?'danger':'pri'}" id="smOk">${okLabel}</button></div>`;
+  $('#smallModal').classList.add('on'); $('#scrim').classList.add('on');
+  $('#smOk').onclick = async () => { const b=$('#smOk'); b.disabled=true; try { const ok = await onOk(); if (ok!==false) $('#smallModal').classList.remove('on'); } catch(e){ toast(e.message,'err'); } b.disabled=false; };
+}
+function askDelete(id){
+  const h = S.holdings.find(x=>x.id===id);
+  smallModal('Delete investment?', `<p style="margin:0">This removes <b>${esc(h.company)}</b> from your Google Sheet. This cannot be undone.</p>`, 'Delete', async () => {
+    const res = await call('api_deleteHolding', id); applyData(res.data); closeAll(); toast('Investment deleted','ok'); render(); return true; }, true);
+}
+
+/* ---------------- LOCK-IN ---------------- */
+function renderLock(){
+  const R = rows().filter(r=>r.rem>0), T = totals(R);
+  const LN = lensNote();
+  const locked = R.filter(r=>r.locked).sort((a,b)=>a.h.lockinDate<b.h.lockinDate?-1:1);
+  const free = R.filter(r=>!r.locked).sort((a,b)=>b.curVal-a.curVal);
+  locked.sort((a,b)=> a.rel.d<b.rel.d?-1:a.rel.d>b.rel.d?1:a.rel.est-b.rel.est);
+  const byM = {}; locked.forEach(r => { const k = r.rel.est ? r.rel.y+'-E' : r.rel.d.slice(0,7); (byM[k] = byM[k] || []).push(r); });
+  const mLabel = k => /-E$/.test(k) ? k.slice(0,4)+' · expected (year only)' : new Date(k+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const in90 = locked.filter(r=>!r.rel.est && r.daysToRelease<=90), in365 = locked.filter(r=>!r.rel.est && r.daysToRelease<=365);
+  const s = l => l.reduce((a,r)=>a+r.curVal,0);
+  $('#view').innerHTML = LN + `
+  <div class="grid kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+    <div class="card kpi"><div class="ico" style="background:var(--accent-soft);color:var(--accent)">${IC.lock}</div><div class="lbl">Locked shares</div><div class="val num">${fmtQ(T.lockedQty)}</div><div class="foot">Value <b style="color:var(--text)">${fmtC(T.lockedVal)}</b> · ${locked.length} holdings</div></div>
+    <div class="card kpi"><div class="ico" style="background:var(--good-soft);color:var(--good)">${IC.unlock}</div><div class="lbl">Liquid shares</div><div class="val num">${fmtQ(T.liquidQty)}</div><div class="foot">Value <b style="color:var(--text)">${fmtC(T.liquidVal)}</b> · ${free.length} holdings</div></div>
+    <div class="card kpi"><div class="lbl">Releasing in 90 days</div><div class="val num">${fmtC(s(in90))}</div><div class="foot">${fmtQ(in90.reduce((a,r)=>a+r.rem,0))} shares · ${in90.length} holdings</div></div>
+    <div class="card kpi"><div class="lbl">Releasing in 12 months <span class="hint">(exact dates)</span></div><div class="val num">${fmtC(s(in365))}</div><div class="foot">${fmtQ(in365.reduce((a,r)=>a+r.rem,0))} shares · ${in365.length} holdings</div></div>
+  </div>
+  <div class="grid g-73" style="margin-top:16px">
+    <div class="card"><div class="card-head"><div><h3>Release calendar</h3><div class="hint">Locked promoter shares by release month</div></div></div>
+      ${Object.keys(byM).length ? Object.entries(byM).map(([m, l]) => `<div class="month"><div class="month-h"><b>${mLabel(m)}</b><span class="num">${fmtQ(l.reduce((a,r)=>a+r.rem,0))} shares · ${fmtC(s(l))}</span></div>
+        <div class="list">${l.map(r=>`<div class="li" onclick="openDrawer('${r.h.id}')">${cdBox(r)}<div class="m"><b>${esc(r.h.company)}</b><span>${fmtRel(r.h.lockinDate)} · ${esc(r.h.dematHolder||'—')} · ${esc(r.h.sector||'')}</span></div><div class="r num">${fmtC(r.curVal)}<span>${fmtQ(r.rem)} sh</span></div></div>`).join('')}</div></div>`).join('') : `<div class="empty">${IC.unlock}Nothing locked right now</div>`}
+    </div>
+    <div class="card"><div class="card-head"><div><h3>Liquid holdings</h3><div class="hint">Lock-in released or not applicable</div></div></div>
+      <div class="list">${free.length ? free.map(r=>`<div class="li" onclick="openDrawer('${r.h.id}')"><div class="av" style="background:${avColor(r.h.company)}">${esc(initials(r.h.symbol||r.h.company))}</div><div class="m"><b>${esc(r.h.company)}</b><span>${r.rel?'Released '+fmtRel(r.h.lockinDate):'No lock-in date'} · ${esc(r.h.listing)}</span></div><div class="r num">${fmtC(r.curVal)}<span>${fmtQ(r.rem)} sh</span></div></div>`).join('') : `<div class="empty">No liquid holdings</div>`}</div></div>
+  </div>`;
+}
+
+/* ---------------- SETTINGS ---------------- */
+function renderSettings(){
+  const m = S.meta, pc = Object.keys(S.prices).length;
+  $('#view').innerHTML = `
+  <div class="grid g2">
+    <div class="card"><h3>LTP feed</h3><div class="hint">Listed holdings are valued at the latest traded price${Object.values(S.prices)[0]&&Object.values(S.prices)[0].source?' · current source: <b>'+esc(Object.values(S.prices)[0].source)+'</b>':''}</div>
+      <div class="setrow"><div class="m"><b>Last refresh</b><span>${esc(m.lastPriceRefresh||'Never')} · ${pc} securities cached</span><br><span style="color:${(m.lastPriceStatus||'').startsWith('ERR')?'var(--bad)':'var(--muted)'}">${esc(m.lastPriceStatus||'')}</span></div><button class="btn pri" onclick="refreshLtp()">Refresh now</button></div>
+      <div class="setrow"><div class="m"><b>Auto-refresh during market hours</b><span>Every 15 min, Sun–Thu 11:00–15:15 NPT, plus one close-of-day pull (uses the sources below)</span></div><label class="switch"><input type="checkbox" id="autoSw" ${m.autoRefresh?'checked':''}><span></span></label></div>
+      <div class="setrow"><div class="m"><b>Sync company &amp; sector list</b><span>${S.companies.length} companies cached · used to auto-fill name and sector from the symbol</span></div><button class="btn" onclick="syncCos()">Sync</button></div>
+      <div class="setrow"><div class="m"><b>Auto-match NEPSE symbols</b><span>Fills missing symbols for Listed holdings by matching company names to the nepalstock.com list</span></div><button class="btn" onclick="matchSyms()">Match</button></div>
+      <div class="setrow"><div class="m"><b>Listed holdings without LTP</b><span>${rows().filter(r=>r.h.listing==='Listed' && r.rem>0 && r.src!=='LTP' && r.src!=='Manual').map(r=>esc(r.h.symbol||r.h.company)).join(', ') || 'None. All listed holdings are priced.'}</span></div></div>
+    </div>
+    <div class="card"><h3>Data</h3><div class="hint">Stored in your Google Sheet (tab “Holdings”)</div>
+      <div class="setrow"><div class="m"><b>Export holdings</b><span>All rows with computed returns, as CSV</span></div><button class="btn" onclick="exportCsv(rows())">${IC.dl}Export</button></div>
+      <div class="setrow"><div class="m"><b>Import holdings</b><span>Drop a CSV, or paste rows copied straight from Excel (your existing column headers are recognised)</span></div><button class="btn" onclick="exportTemplate()">Template</button></div>
+      <label class="drop" id="drop"><input type="file" accept=".csv,.tsv,.txt,text/csv" id="csvIn" hidden><b>Drop a CSV here</b> or click to choose</label>
+      <div class="f" style="margin-top:12px"><textarea id="pasteIn" rows="4" placeholder="…or paste from Excel here (include the header row) and click Preview"></textarea></div>
+      <div style="margin-top:8px;text-align:right"><button class="btn sm" id="pasteBtn">Preview pasted rows</button></div>
+      <div id="impPrev"></div>
+      ${MODE()==='api'?`<div class="setrow"><div class="m"><b>Signed in</b><span>Connected to your Apps Script · this device stays signed in for 30 days. Change the PIN from the Google Sheet menu: Promoter Portfolio → Set app PIN / password (signs out all devices).</span></div><button class="btn" onclick="lockApp()">Sign out</button></div>`:''}
+      ${!GAS?`<div class="setrow"><div class="m"><b>Backend connection</b><span>${MODE()==='api' ? 'Apps Script · '+esc(getCfg().url.replace(/^https:\/\/script\.google\.com\/macros\/s\/(.{6}).*$/,'…/$1…')) : 'Demo data'}</span></div><button class="btn danger" onclick="disconnect()">${MODE()==='api'?'Disconnect this device':'Exit demo'}</button></div>`:''}
+      ${!GAS?`<div class="setrow"><div class="m"><b>Install as an app</b><span>${/iphone|ipad|ipod/i.test(navigator.userAgent)?'In Safari tap Share ⬆ → <b>Add to Home Screen</b>.':'Use the <b>Install app</b> button at the top, or the browser menu → <b>Install app / Add to Home screen</b>.'}</span></div>${S.installEvt?'<button class="btn pri" onclick="doInstall()">Install</button>':''}</div>`:''}
+      ${m.sheetUrl?`<div class="setrow"><div class="m"><b>Open Google Sheet</b><span>Edit rows directly; the app reads them live</span></div><a class="btn" href="${esc(m.sheetUrl)}" target="_blank" rel="noopener">Open</a></div>`:''}
+      ${m.demo&&MODE()==='demo'?`<div class="setrow"><div class="m"><b>Reset demo data</b><span>Restore the sample portfolio</span></div><button class="btn danger" onclick="Demo.reset();boot()">Reset</button></div>`:''}
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Price sources</h3><div class="hint">Each refresh tries: GitHub feed (if set) → nepalstock.com → nepalstock.com.np → merolagani.com. nepalstock.com blocks Google's servers, so use the GitHub feed or the browser bridge to get nepalstock.com prices.</div>
+    <div class="setrow" style="flex-wrap:wrap"><div class="m" style="min-width:260px"><b>GitHub price feed <span class="chip released" style="margin-left:4px">recommended · automatic</span></b><span>A GitHub Action fetches nepalstock.com every 15 min in market hours and publishes prices.json. Paste its raw URL here (see SETUP.md).</span></div>
+      <div style="display:flex;gap:8px;flex:1;min-width:300px"><input id="feedUrl" class="sel" style="max-width:none;flex:1;background-image:none;padding-right:12px" placeholder="https://raw.githubusercontent.com/<user>/<repo>/main/prices.json" value="${esc(m.feedUrl||'')}"><button class="btn" id="feedSave">Save</button></div></div>
+    <div class="setrow" style="flex-wrap:wrap"><div class="m" style="min-width:260px"><b>nepalstock.com bridge (from your browser)</b><span>Drag this button to your bookmarks bar. Open www.nepalstock.com, click the bookmark, then paste below. It also syncs the company &amp; sector list.</span></div>
+      <a class="btn pri" id="bridgeLink" href="#" title="Drag me to your bookmarks bar" onclick="toast('Drag this button to your bookmarks bar, then click it while on nepalstock.com');return false">⇢ PSP · nepalstock prices</a>
+      <button class="btn sm" id="bridgeCopy">Copy bookmark code</button></div>
+    <div class="f" style="margin-top:4px"><label>Paste prices: bridge text, prices.json, or a Today's Price table copied from nepalstock.com / Excel</label><textarea id="pxPaste" rows="3" placeholder="PSP1{…}   or   Symbol  LTP  Prev. Close …"></textarea></div>
+    <div style="margin-top:8px;text-align:right"><button class="btn pri sm" id="pxSave">Save prices</button></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>How values are calculated</h3><div class="hint" style="line-height:1.7;margin-top:8px">
+    <b>Shares held</b> = no. of shares + bonus shares − sold qty; cost per share is the investment spread over shares + bonus. · <b>Price used</b>: Manual LTP override → nepalstock.com LTP (listed) → Current / expected rate → Cost. ·
+    <b>Current value</b> = shares still held × price used. · <b>Realized P/L</b> = exited qty × (avg exit price − cost). ·
+    <b>Unrealized P/L</b> = shares held × (price used − cost). · <b>Total return %</b> = (realized + unrealized) ÷ total cost. ·
+    <b>XIRR</b>: annualised return on dated cash flows (investment, exits, current value today). ·
+    <b>Locked</b> = shares still held whose lock-in release is in the future (an expected year like 2030E counts as locked until 31 Dec of that year); <b>Liquid</b> = shares still held whose lock-in has been released (or no date set). ·
+    <b>Joint investments</b>: enter owners with % (e.g. “Self 20, Friend A 20, Friend B 20, Friend C 20, Friend D 20”); <i>View as</i> scales every figure to one owner's share; <i>Segregate</i> splits a joint holding into one record per owner. ·
+    <b>Hold / Partial Exit / Exit</b> is suggested from sold qty (0 → Hold, some → Partial Exit, all → Exit) and can be changed on the form.</div></div>`;
+  $('#bridgeLink').href = bridgeHref();
+  $('#bridgeCopy').onclick = () => { const code = bridgeHref(); navigator.clipboard.writeText(code).then(() => toast('Bookmark code copied. Create a new bookmark and paste it as the URL','ok'), () => { $('#pxPaste').value = code; toast('Copy the code from the paste box (it is the bookmark URL)','err'); }); };
+  $('#feedSave').onclick = async () => { try { const r = await call('api_setFeedUrl', $('#feedUrl').value.trim()); applyData(r.data); toast(r.message,'ok'); } catch(e){ toast(e.message,'err'); } };
+  $('#pxSave').onclick = async () => { const b = $('#pxSave'); b.disabled = true;
+    try { const pl = parsePricePaste($('#pxPaste').value); const r = await call('api_importPrices', pl); applyData(r.data); toast(r.message,'ok'); render(); }
+    catch(e){ toast(e.message,'err'); } b.disabled = false; };
+  $('#autoSw').onchange = async e => { try { const r = await call('api_setAutoRefresh', e.target.checked); applyData(r.data); toast(r.message,'ok'); renderPill(); } catch(err){ toast(err.message,'err'); e.target.checked=!e.target.checked; } };
+  const inp = $('#csvIn'), drop = $('#drop');
+  inp.onchange = () => inp.files[0] && readCsv(inp.files[0]);
+  $('#pasteBtn').onclick = () => { const t = $('#pasteIn').value; if (!t.trim()) return toast('Paste some rows first','err'); previewImport(t, 'pasted rows'); };
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('on'); }; drop.ondragleave = () => drop.classList.remove('on');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('on'); e.dataTransfer.files[0] && readCsv(e.dataTransfer.files[0]); };
+}
+async function refreshLtp(){
+  const b = $('#refreshBtn'), ic = b.querySelector('svg'); b.disabled = true; ic.classList.add('spin');
+  try { const r = await call('api_refreshPrices'); applyData(r.data); toast(r.message, r.ok?'ok':'err'); render(); }
+  catch(e){ toast('LTP refresh failed: '+e.message,'err'); }
+  b.disabled = false; ic.classList.remove('spin');
+}
+async function matchSyms(){ try { const r = await call('api_matchSymbols'); applyData(r.data); toast(r.message,'ok'); render(); } catch(e){ toast(e.message,'err'); } }
+async function syncCos(){ try { const r = await call('api_syncCompanies'); applyData(r.data); toast(r.message,'ok'); render(); } catch(e){ toast(e.message,'err'); } }
+
+/* ---------------- nepalstock.com browser bridge ----------------
+   Saved as a bookmark and clicked while on www.nepalstock.com. It runs in the user's own browser (in Nepal),
+   calls nepalstock.com's own API (same site, so no cross-site block), and copies prices + company list
+   for pasting into this app. Not executed by this page; only its source is turned into the bookmark. */
+async function nepseBridge(){
+  const T=[5,8,4,7,9,4,6,9,5,5,6,5,3,5,4,4,9,6,6,8,8,6,8,6,5,8,4,9,5,9,8,5,3,4,7,7,4,7,3,9];
+  const box=(msg,txt)=>{const d=document.createElement('div');d.style.cssText='position:fixed;z-index:2147483647;top:16px;right:16px;width:380px;background:#fff;color:#111;border:2px solid #0C4DA1;border-radius:12px;padding:14px;font:14px system-ui,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.3)';d.innerHTML='<b style="color:#0C4DA1">Promoter Portfolio · price bridge</b><p style="margin:8px 0;line-height:1.45">'+msg+'</p>';if(txt){const t=document.createElement('textarea');t.value=txt;t.style.cssText='width:100%;height:70px;font:11px monospace';d.appendChild(t);setTimeout(()=>{t.focus();t.select();},60);}const x=document.createElement('button');x.textContent='Close';x.style.cssText='margin-top:8px;padding:6px 14px;border-radius:8px;border:1px solid #999;background:#f4f4f4;cursor:pointer';x.onclick=()=>d.remove();d.appendChild(x);document.body.appendChild(d);};
+  if(!/nepalstock\.com/.test(location.hostname)){box('Open <b>www.nepalstock.com</b> in this tab first, wait for it to load, then click this bookmark again.');return;}
+  try{
+    const g=async(u,t)=>{const r=await fetch(u,{headers:t?{Authorization:'Salter '+t}:{}});if(!r.ok)throw new Error(u+' → HTTP '+r.status);return r.json();};
+    const pr=await g('/api/authenticate/prove');
+    const s=parseInt(pr.salt2,10),A=Math.trunc(s/100)%10,B=Math.trunc(s/10)%10,C=s%10,t=T[A+B+C],n=t+22,l=A+B+t+32,o=A+B+t+60,p=B+t+88,q=A+t+110,a=pr.accessToken;
+    const tk=a.slice(0,n)+a.slice(n+1,l)+a.slice(l+1,o)+a.slice(o+1,p)+a.slice(p+1,q)+a.slice(q+1);
+    let d=await g('/api/nots/securityDailyTradeStat/58',tk);d=Array.isArray(d)?d:(d.content||[]);
+    const out={src:'nepalstock.com (browser)',at:new Date().toISOString(),p:d.filter(r=>r.symbol).map(r=>[r.symbol,r.lastTradedPrice||r.closePrice||r.previousClose||0,r.previousClose||'',r.percentageChange==null?'':r.percentageChange,r.businessDate||''])};
+    try{const c=await g('/api/nots/company/list',tk);out.c=(Array.isArray(c)?c:[]).map(x=>[x.symbol,x.companyName||'',x.sectorName||'']);}catch(e){}
+    const txt='PSP1'+JSON.stringify(out);let ok=false;try{await navigator.clipboard.writeText(txt);ok=true;}catch(e){}
+    box((ok?'✅ Copied ':'Copy all the text below (Ctrl+C): ')+out.p.length+' prices'+(out.c?' and '+out.c.length+' companies':'')+'.<br>Now open the portfolio app → <b>Prices &amp; Settings</b> → <b>Paste prices</b> → Save.',ok?'':txt);
+  }catch(e){box('❌ '+e.message+'<br>Let the nepalstock.com page finish loading, then try again.');}
+}
+const bridgeHref = () => 'javascript:' + encodeURIComponent('(' + nepseBridge.toString() + ')();void 0');
+/** Accepts the bridge text ("PSP1{...}"), prices.json, or a pasted Today's Price table (needs Symbol + LTP/Close columns). */
+function parsePricePaste(text){
+  text = String(text||'').trim();
+  if (/^PSP1/.test(text)) text = text.slice(4);
+  if (/^\{/.test(text)) { const j = JSON.parse(text); if (!j.p) throw new Error('No prices in pasted JSON'); return j; }
+  const rowsIn = text.split(/\r?\n/)[0].includes('\t') ? parseTsv(text) : parseCsv(text);
+  const hdr = (rowsIn[0]||[]).map(x=>x.trim().toLowerCase());
+  const fi = re => hdr.findIndex(h => re.test(h));
+  const iS = fi(/^(symbol|scrip|stock symbol)$/), iL = fi(/^ltp$|last traded|^close( price)?$|closing price|^last price$/), iP = fi(/prev/), iC = fi(/%|percent/);
+  if (iS < 0 || iL < 0) throw new Error('Could not find Symbol and LTP / Close columns in the pasted table');
+  const p = rowsIn.slice(1).map(r => [String(r[iS]||'').trim().toUpperCase(), N(r[iL]), iP>=0?N(r[iP]):'', iC>=0?N(String(r[iC]).replace('%','')):'', '']).filter(r => r[0] && r[1]);
+  return { src: 'pasted table', p };
+}
+
+/* ---------------- CSV ---------------- */
+const CSV_COLS = [['id','ID'],['company','Company Name'],['symbol','NEPSE Symbol'],['sector','Sector'],['listing','Listing / IPO Status'],['listingDate','Listing Date'],['projectStatus','Project Status'],['progressPct','Construction Progress %'],['dematHolder','Demat Account Holder'],['owner','Ownership (owner or split e.g. Self 50%, Partner 50%)'],['boid','BOID / Demat No.'],['shares','No. of Shares'],['bonusShares','Bonus Shares'],['costPerShare','Rate (Cost per Share)'],['investDate','Date of Investment'],['lockinDate','Lock-in Release Date (date or 2030E)'],['exitStatus','Hold / Partial Exit / Exit'],['exitedQty','Sold Qty'],['exitPrice','Sold Rate (avg)'],['exitDate','Date of Exit'],['fairValue','Current / Expected Rate'],['manualLtp','Manual LTP Override'],['notes','Notes']];
+// Extra header names recognised on import (e.g. your existing Excel tracker)
+const ALIASES = { company:['investment company','company','name of company','company name'], investDate:['invested date','investment date','date of investment'], listingDate:['listing date'], lockinDate:['lockin released date','lock-in released date','lockin release date','lock-in release date','promoter lock-in release date'],
+  listing:['ipo','listing status','ipo status','listing'], progress:['latest progress','progress','current status','project status'], costPerShare:['rate','cost per share','cost'], shares:['no of shares','no. of shares','shares','quantity'], bonusShares:['bonus shares','bonus'],
+  dematHolder:['demat','demat account holder','demat holder'], owner:['ownership','owner','beneficial owner','owners'], fairValue:['current rate/expected rate','current rate','expected rate','current/expected rate'], exitStatus:['hold/exit/partial exit','exit status','status'], exitedQty:['sold qty','exited qty','sold quantity'], exitPrice:['sold rate','exit price','sold price'], exitDate:['date of exit','exit date','sold date'], sector:['sector'], symbol:['symbol','nepse symbol','scrip'], boid:['boid','demat no'], notes:['notes','remarks'] };
+const MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+function parseAnyDate(v, allowYearE){
+  v = String(v||'').trim(); if (!v || v==='-') return '';
+  let m;
+  if (allowYearE && (m = v.match(/^(\d{4})\s*E$/i))) return m[1]+'E';
+  if ((m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  const yy = y => (y.length===2 ? (+y>70?'19':'20')+y : y);
+  if ((m = v.match(/^(\d{1,2})[-\s/]([A-Za-z]{3})[A-Za-z]*[-\s/,]+(\d{2,4})$/)) && MON[m[2].toLowerCase()]) return `${yy(m[3])}-${String(MON[m[2].toLowerCase()]).padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  if ((m = v.match(/^([A-Za-z]{3})[A-Za-z]*[-\s/,]+(\d{2,4})$/)) && MON[m[1].toLowerCase()]) return `${yy(m[2])}-${String(MON[m[1].toLowerCase()]).padStart(2,'0')}-01`;
+  if ((m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  const d = new Date(v); return isNaN(d) ? '' : d.toISOString().slice(0,10);
+}
+function matchCompany(name){
+  const norm = s => String(s||'').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9 ]/g,' ').replace(/\b(ltd|limited|pvt|private|co|company|the|public)\b/g,' ').replace(/\s+/g,'');
+  const n = norm(name); if (n.length < 5) return null;
+  const hits = S.companies.filter(c => { const cn = norm(c.name); return cn && (cn===n || cn.indexOf(n)===0 || n.indexOf(cn)===0); });
+  return hits.length===1 ? hits[0] : null;
+}
+const csvCell = v => { v = v==null?'':String(v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+function download(name, text){
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text],{type:'text/csv'})); a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Downloaded '+name,'ok'); }
+  catch(e){ navigator.clipboard.writeText(text).then(()=>toast('Copied CSV to clipboard','ok'), ()=>toast('Download blocked','err')); }
+}
+function exportCsv(R){
+  const extra = [['Shares Held (incl. bonus)',r=>r.rem],['Adj. Cost per Share',r=>r.cost.toFixed(4)],['Price Used',r=>r.price],['Price Source',r=>r.src],['Total Cost',r=>r.totalCost.toFixed(2)],['Current Value',r=>r.curVal.toFixed(2)],['Realized P/L',r=>r.realPL.toFixed(2)],['Unrealized P/L',r=>r.unPL.toFixed(2)],['Total Return %',r=>r.retPct==null?'':r.retPct.toFixed(2)],['XIRR %',r=>r.xirr==null?'':(r.xirr*100).toFixed(2)],['Lock-in Status',r=>r.rem<=0?'Exited':r.locked?'Locked':'Released'],['Locked Shares',r=>r.lockedQty],['Liquid Shares',r=>r.liquidQty],['Locked Value',r=>r.lockedVal.toFixed(2)],['Liquid Value',r=>r.liquidVal.toFixed(2)]];
+  const lines = [CSV_COLS.map(c=>c[1]).concat(extra.map(e=>e[0])).map(csvCell).join(',')];
+  R.forEach(r => lines.push(CSV_COLS.map(c=> c[0]==='exitStatus'?r.exitStatus:r.h[c[0]]).concat(extra.map(e=>e[1](r))).map(csvCell).join(',')));
+  download('promoter-portfolio-'+todayISO()+'.csv', lines.join('\n'));
+}
+function exportTemplate(){ download('promoter-portfolio-template.csv', CSV_COLS.slice(1).map(c=>c[1]).map(csvCell).join(',')+'\nExample Hydro Ltd,,Hydro Power,Not Applied,,Under Construction,40,Self,"Self 50, Partner 50",,1000,,100,2025-01-15,2030E,Hold,,,,400,,'); }
+function parseCsv(t){ const out=[]; let row=[], cur='', q=false; for (let i=0;i<t.length;i++){ const c=t[i]; if(q){ if(c==='"'){ if(t[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; } else if(c==='"') q=true; else if(c===','){row.push(cur);cur='';} else if(c==='\n'||c==='\r'){ if(c==='\r'&&t[i+1]==='\n') i++; row.push(cur); out.push(row); row=[]; cur=''; } else cur+=c; } if(cur||row.length){row.push(cur);out.push(row);} return out.filter(r=>r.some(x=>x.trim())); }
+function readCsv(file){ const fr = new FileReader(); fr.onload = () => previewImport(String(fr.result), file.name); fr.readAsText(file); }
+function parseTsv(t){ return t.split(/\r?\n/).map(l=>l.split('\t')).filter(r=>r.some(x=>x.trim())); }
+function previewImport(text, label){
+  text = text.replace(/^\uFEFF/,'');
+  const first = text.split(/\r?\n/)[0] || '';
+  const rowsIn = first.includes('\t') ? parseTsv(text) : parseCsv(text);
+  if (rowsIn.length<2) { toast('No data rows found (include the header row)','err'); return; }
+  const hdr = rowsIn[0].map(x=>x.trim().toLowerCase().replace(/\s+/g,' '));
+  const find = (k, label) => { const names = [label && label.toLowerCase(), k.toLowerCase()].concat(ALIASES[k]||[]).filter(Boolean); return hdr.findIndex(x => names.includes(x)); };
+  const keys = CSV_COLS.filter(c=>c[0]!=='id').map(c=>c[0]).concat(['progress']);
+  const map = keys.map(k => [k, find(k, (CSV_COLS.find(c=>c[0]===k)||[])[1])]).filter(m=>m[1]>=0);
+  const items = rowsIn.slice(1).map(r => {
+    const o = {}; map.forEach(([k,i]) => o[k] = String(r[i]??'').trim());
+    ['shares','bonusShares','costPerShare','exitedQty','exitPrice','fairValue','manualLtp','progressPct'].forEach(k => { if (o[k]!==undefined) o[k] = /^[\s-]*$/.test(o[k]) ? '' : N(o[k].replace('%','')); });
+    if (o.progress !== undefined) { const p = o.progress; delete o.progress;
+      if (/%/.test(p) || /^\d+(\.\d+)?$/.test(p)) { o.projectStatus = N(p.replace('%',''))>=100 ? 'Operational' : 'Under Construction'; o.progressPct = N(p.replace('%','')); }
+      else if (/under|construction/i.test(p)) o.projectStatus = 'Under Construction';
+      else if (/operat/i.test(p)) o.projectStatus = 'Operational'; }
+    if (o.listing !== undefined) { const l = o.listing.toLowerCase(); o.listing = /^listed/.test(l) ? 'Listed' : /pipe/.test(l) ? 'Pipeline' : 'Not Applied'; }
+    if (o.exitStatus !== undefined) { const e = o.exitStatus.toLowerCase(); o.exitStatus = /partial/.test(e) ? 'Partial Exit' : /exit/.test(e) ? 'Exit' : 'Hold'; }
+    ['investDate','listingDate','exitDate'].forEach(k => { if (o[k]!==undefined) o[k] = parseAnyDate(o[k]); });
+    if (o.lockinDate!==undefined) o.lockinDate = parseAnyDate(o.lockinDate, true);
+    if (!o.sector) { const m = matchCompany(o.company); if (m) { o.sector = m.sector; if (!o.symbol && o.listing==='Listed') o.symbol = m.symbol; } else if (/hydro|power|energy/i.test(o.company||'')) o.sector = 'Hydro Power'; else if (/hotel|resort|cable car/i.test(o.company||'')) o.sector = 'Hotels And Tourism'; }
+    return o;
+  }).filter(o => o.company && N(o.shares) > 0);
+  const matched = map.map(m=>m[0]==='progress'?'Latest Progress':(CSV_COLS.find(c=>c[0]===m[0])||[])[1]).join(', ');
+  $('#impPrev').innerHTML = `<div class="banner" style="background:var(--brand-soft);margin-top:12px;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>${items.length}</b> valid rows in ${esc(label)}. Matched ${map.length} columns: <span class="hint">${esc(matched)}</span></span><button class="btn pri sm" id="doImp">Import ${items.length}</button></div>
+    <div class="tbl-wrap" style="max-height:220px;margin-top:8px"><table><thead><tr><th>Company</th><th class="r">Shares</th><th class="r">Bonus</th><th class="r">Rate</th><th>Invested</th><th>Lock-in</th><th>Listing</th><th>Status</th></tr></thead><tbody>${items.map(o=>`<tr><td>${esc(o.company)}</td><td class="r num">${fmtQ(N(o.shares))}</td><td class="r num">${fmtQ(N(o.bonusShares))}</td><td class="r num">${nf2.format(N(o.costPerShare))}</td><td>${fmtD(o.investDate)}</td><td>${fmtRel(o.lockinDate)}</td><td>${esc(o.listing||'')}</td><td>${esc(o.exitStatus||'Hold')}</td></tr>`).join('')}</tbody></table></div>`;
+  $('#doImp').onclick = async () => { const b=$('#doImp'); b.disabled=true; try { const r = await call('api_importHoldings', items); applyData(r.data); toast(`Imported ${r.count} holdings`,'ok'); go('holdings'); } catch(e){ toast(e.message,'err'); b.disabled=false; } };
+}
+
+/* ---------------- shell ---------------- */
+function disconnect(){
+  smallModal('Disconnect this device?', '<p style="margin:0">Signs out and removes the saved web app link and the offline copy from this device. Your Google Sheet is not changed.</p>', 'Disconnect', async () => {
+    const c = getCfg(); if (c && c.token) { try { await apiCall('logout', []); } catch(e){} }
+    setCfg(null); try { localStorage.removeItem(CACHE_KEY); localStorage.removeItem('psp_mode'); } catch(e){}
+    S.holdings = []; S.prices = {}; S.meta = {}; closeAll(); boot(); return true; }, true);
+}
+/* ---- install (PWA) ---- */
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installEvt = e; const b = $('#installBtn'); if (b) b.style.display = ''; });
+window.addEventListener('appinstalled', () => { S.installEvt = null; $('#installBtn').style.display = 'none'; toast('App installed','ok'); });
+async function doInstall(){ if (!S.installEvt) { toast(/iphone|ipad|ipod/i.test(navigator.userAgent) ? 'In Safari: Share ⬆ → Add to Home Screen' : 'Use your browser menu → Install app','ok'); return; } S.installEvt.prompt(); await S.installEvt.userChoice; S.installEvt = null; $('#installBtn').style.display = 'none'; }
+function toast(msg, type){ const t = document.createElement('div'); t.className = 'toast '+(type||''); t.textContent = msg; $('#toasts').appendChild(t); setTimeout(()=>{ t.style.transition='.3s'; t.style.opacity=0; setTimeout(()=>t.remove(),300); }, 3800); }
+function applyData(d){ if (!d) return; S.holdings = d.holdings||[]; S.prices = d.prices||{}; S.companies = d.companies||[]; S.meta = d.meta||{}; }
+function setTheme(t){ document.documentElement.dataset.theme = t; try{ localStorage.setItem('psp_theme', t); }catch(e){} if (!S.loading) render(); }
+async function boot(){
+  if (MODE()==='none' || MODE()==='login') { S.loading = false; render(); return; }
+  const cached = MODE()==='api' && cachedData();
+  if (cached) { applyData(cached); S.meta.offline = true; S.loading = false; } else S.loading = true;
+  render();
+  try { applyData(await call('api_getData')); S.meta.offline = false; }
+  catch(e){ if (MODE()==='login') return; toast((cached ? 'Showing saved copy. ' : 'Could not load data: ') + e.message, 'err'); if (cached) S.meta.offline = true; }
+  S.loading = false; render();
+}
+(function init(){
+  let th = 'light'; try { th = localStorage.getItem('psp_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); S.layout = localStorage.getItem('psp_layout') || 'table'; } catch(e){}
+  document.documentElement.dataset.theme = th;
+  $$('[data-view]').forEach(b => b.onclick = () => go(b.dataset.view));
+  $$('[data-add]').forEach(b => b.onclick = () => openForm());
+  $('#topAdd').onclick = $('#sideAdd').onclick = () => openForm();
+  $('#refreshBtn').onclick = refreshLtp;
+  $('#installBtn').onclick = doInstall;
+  if (!window.IN_GAS && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  window.addEventListener('online', () => { if (MODE()==='api') boot(); });
+  $('#lensSel').onchange = e => { S.lens = e.target.value; try{ localStorage.setItem('psp_lens', S.lens); }catch(err){} render(); };
+  try { S.lens = localStorage.getItem('psp_lens') || ''; } catch(e){}
+  $('#themeBtn').onclick = () => setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+  $('#scrim').onclick = closeTop;
+  document.addEventListener('keydown', e => { if (e.key==='Escape') closeTop(); if ((e.key==='n'||e.key==='N') && !/input|textarea|select/i.test(document.activeElement.tagName) && !$('#formModal').classList.contains('on')) { e.preventDefault(); openForm(); } if (e.key==='/' && S.view==='holdings' && document.activeElement.id!=='q') { e.preventDefault(); $('#q').focus(); } });
+  const h = (location.hash||'').slice(1); if (TITLES[h]) S.view = h;
+  $$('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view===S.view)); const [t,s]=TITLES[S.view]; $('#pageTitle').textContent=t; $('#pageSub').textContent=s;
+  boot();
+})();
+</script>
+</body>
+</html>
